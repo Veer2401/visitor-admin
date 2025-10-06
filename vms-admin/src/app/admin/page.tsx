@@ -46,11 +46,18 @@ const initialFormData: VisitFormData = {
 
 export default function AdminPage() {
   const [visits, setVisits] = useState<EditingVisit[]>([]);
+  const [filteredVisits, setFilteredVisits] = useState<EditingVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<VisitFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out'>('all');
+  const [dateFilter, setDateFilter] = useState('');
+  const [emailFilter, setEmailFilter] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((user) => {
@@ -87,6 +94,56 @@ export default function AdminPage() {
     });
     return () => unsub();
   }, [user]);
+
+  // Filter visits based on search and filter criteria
+  useEffect(() => {
+    let filtered = [...visits];
+
+    // Search filter (searches in patient name, visitor name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(visit => 
+        (visit.patientName?.toLowerCase().includes(query)) ||
+        (visit.visitorName?.toLowerCase().includes(query)) ||
+        (visit.visitorMobile?.toLowerCase().includes(query))
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(visit => visit.status === statusFilter);
+    }
+
+    // Email filter
+    if (emailFilter.trim()) {
+      const emailQuery = emailFilter.toLowerCase().trim();
+      filtered = filtered.filter(visit => 
+        visit.createdBy?.toLowerCase().includes(emailQuery)
+      );
+    }
+
+    // Date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter);
+      filtered = filtered.filter(visit => {
+        if (!visit.date) return false;
+        
+        let visitDate: Date;
+        if (typeof visit.date === 'object' && 'toDate' in visit.date && typeof visit.date.toDate === 'function') {
+          visitDate = visit.date.toDate();
+        } else if (visit.date instanceof Date) {
+          visitDate = visit.date;
+        } else {
+          return false;
+        }
+        
+        // Compare dates (ignore time)
+        return visitDate.toDateString() === filterDate.toDateString();
+      });
+    }
+
+    setFilteredVisits(filtered);
+  }, [visits, searchQuery, statusFilter, dateFilter, emailFilter]);
 
   const formatTimestamp = (timestamp: TimestampField) => {
     if (!timestamp) return '-';
@@ -234,6 +291,13 @@ export default function AdminPage() {
     }
   };
 
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setDateFilter('');
+    setEmailFilter('');
+  };
+
   const handleSignIn = async () => {
     try {
       await signInWithGoogle();
@@ -307,9 +371,9 @@ export default function AdminPage() {
               <p className="mt-1 text-sm text-gray-600">Manage and monitor all visitor entries</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                <span>Welcome, </span>
-                <span className="font-medium">{user?.displayName || user?.email}</span>
+              <div className="text-lg text-gray-700">
+                <span className="font-normal">Welcome, </span>
+                <span className="font-semibold">{user?.displayName || user?.email}</span>
               </div>
               <button
                 onClick={handleSignOut}
@@ -419,11 +483,139 @@ export default function AdminPage() {
           </form>
         </div>
 
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-lg shadow-sm border mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Search & Filter Visits</h2>
+            <p className="text-sm text-gray-600">Use the filters below to find specific visitor records</p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+              {/* Search Box */}
+              <div className="lg:col-span-2">
+                <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  id="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by patient name, visitor name, or mobile..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  id="statusFilter"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'checked_in' | 'checked_out')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                >
+                  <option value="all">All Status</option>
+                  <option value="checked_in">Checked In</option>
+                  <option value="checked_out">Checked Out</option>
+                </select>
+              </div>
+
+              {/* Email Filter */}
+              <div>
+                <label htmlFor="emailFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="text"
+                  id="emailFilter"
+                  value={emailFilter}
+                  onChange={(e) => setEmailFilter(e.target.value)}
+                  placeholder="Filter by email..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <div>
+                <label htmlFor="dateFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  id="dateFilter"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                />
+              </div>
+            </div>
+
+            {/* Filter Actions */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="text-sm text-gray-600">
+                Showing {filteredVisits.length} of {visits.length} visits
+                {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+                  <span className="ml-2 text-blue-600">• Filters applied</span>
+                )}
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+                <button
+                  onClick={clearAllFilters}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Visits Table */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">All Visits</h2>
-            <p className="text-sm text-gray-600">Real-time visitor data from Firestore</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  All Visits
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    ({filteredVisits.length} of {visits.length})
+                  </span>
+                </h2>
+                <p className="text-sm text-gray-600">Real-time visitor data from Firestore</p>
+              </div>
+              
+              {/* Active Filters Display */}
+              <div className="flex flex-wrap gap-2">
+                {searchQuery && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Search: "{searchQuery}"
+                  </span>
+                )}
+                {statusFilter !== 'all' && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Status: {statusFilter === 'checked_in' ? 'Checked In' : 'Checked Out'}
+                  </span>
+                )}
+                {emailFilter && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Email: "{emailFilter}"
+                  </span>
+                )}
+                {dateFilter && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    Date: {new Date(dateFilter).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           
           {loading ? (
@@ -433,24 +625,24 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 table-fixed">
+              <table className="min-w-full divide-y divide-gray-200 table-fixed border border-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient Name</th>
-                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor Name</th>
-                    <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor #</th>
-                    <th className="w-36 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor Mobile</th>
-                    <th className="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-In Time</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-Out Time</th>
-                    <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
+                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Patient Name</th>
+                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Name</th>
+                    <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor #</th>
+                    <th className="w-36 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Mobile</th>
+                    <th className="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Email</th>
+                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Date</th>
+                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-In Time</th>
+                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-Out Time</th>
+                    <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Status</th>
+                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Updated At</th>
                     <th className="w-44 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {visits.map((visit, index) => (
+                  {filteredVisits.map((visit, index) => (
                     <VisitRow
                       key={visit.id}
                       visit={visit}
@@ -463,15 +655,35 @@ export default function AdminPage() {
                       formatTimestamp={formatTimestamp}
                     />
                   ))}
-                  {visits.length === 0 && (
-                    <tr>
+                  {filteredVisits.length === 0 && !loading && (
+                    <tr className="border-b border-gray-300">
                       <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center">
-                          <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                          <p className="text-lg font-medium text-gray-900 mb-1">No visits found</p>
-                          <p className="text-sm text-gray-500">Add your first visit entry using the form above.</p>
+                          {visits.length === 0 ? (
+                            // No visits at all
+                            <>
+                              <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              <p className="text-lg font-medium text-gray-900 mb-1">No visits found</p>
+                              <p className="text-sm text-gray-500">Add your first visit entry using the form above.</p>
+                            </>
+                          ) : (
+                            // No visits match current filters
+                            <>
+                              <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              <p className="text-lg font-medium text-gray-900 mb-1">No visits match your filters</p>
+                              <p className="text-sm text-gray-500 mb-3">Try adjusting your search criteria or clear the filters.</p>
+                              <button
+                                onClick={clearAllFilters}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                              >
+                                Clear All Filters
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -551,8 +763,8 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
 
   if (visit.isEditing) {
     return (
-      <tr className="bg-blue-50">
-        <td className="w-32 px-6 py-4">
+      <tr className="bg-blue-50 border-b border-gray-300">
+        <td className="w-32 px-6 py-4 border-r border-gray-300">
           <input
             type="text"
             name="patientName"
@@ -563,7 +775,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-32 px-6 py-4">
+        <td className="w-32 px-6 py-4 border-r border-gray-300">
           <input
             type="text"
             name="visitorName"
@@ -574,8 +786,8 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-20 px-6 py-4 text-sm text-gray-900">{index}</td>
-        <td className="w-36 px-6 py-4">
+        <td className="w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
+        <td className="w-36 px-6 py-4 border-r border-gray-300">
           <input
             type="tel"
             name="visitorMobile"
@@ -586,7 +798,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-48 px-6 py-4">
+        <td className="w-48 px-6 py-4 border-r border-gray-300">
           <input
             type="email"
             name="createdBy"
@@ -597,10 +809,10 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.date)}</td>
-        <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.checkInTime)}</td>
-        <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.checkOutTime)}</td>
-        <td className="w-28 px-6 py-4">
+        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
+        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
+        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
+        <td className="w-28 px-6 py-4 border-r border-gray-300">
           <select
             name="status"
             defaultValue={visit.status || 'checked_in'}
@@ -612,7 +824,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             <option value="checked_out">Checked Out</option>
           </select>
         </td>
-        <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.updatedAt)}</td>
+        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
         <td className="w-44 px-6 py-4">
           <div className="flex space-x-2">
             <button
@@ -634,17 +846,17 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
   }
 
   return (
-    <tr className="hover:bg-gray-50">
-      <td className="w-32 px-6 py-4 text-sm font-medium text-gray-900 truncate" title={visit.patientName || '-'}>{visit.patientName || '-'}</td>
-      <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate" title={visit.visitorName || '-'}>{visit.visitorName || '-'}</td>
-      <td className="w-20 px-6 py-4 text-sm text-gray-900">{index}</td>
-      <td className="w-36 px-6 py-4 text-sm text-gray-900 truncate" title={visit.visitorMobile || '-'}>{visit.visitorMobile || '-'}</td>
-      <td className="w-48 px-6 py-4 text-sm text-gray-900 truncate" title={visit.createdBy || '-'}>{visit.createdBy || '-'}</td>
-      <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.date)}</td>
-      <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.checkInTime)}</td>
-      <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.checkOutTime)}</td>
-      <td className="w-28 px-6 py-4">{getStatusBadge(visit.status || 'unknown')}</td>
-      <td className="w-40 px-6 py-4 text-sm text-gray-900">{formatTimestamp(visit.updatedAt)}</td>
+    <tr className="hover:bg-gray-50 border-b border-gray-300">
+      <td className="w-32 px-6 py-4 text-sm font-medium text-gray-900 truncate border-r border-gray-300" title={visit.patientName || '-'}>{visit.patientName || '-'}</td>
+      <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorName || '-'}>{visit.visitorName || '-'}</td>
+      <td className="w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
+      <td className="w-36 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorMobile || '-'}>{visit.visitorMobile || '-'}</td>
+      <td className="w-48 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.createdBy || '-'}>{visit.createdBy || '-'}</td>
+      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
+      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
+      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
+      <td className="w-28 px-6 py-4 border-r border-gray-300">{getStatusBadge(visit.status || 'unknown')}</td>
+      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
       <td className="w-44 px-6 py-4">
         <div className="flex space-x-2">
           <button
