@@ -58,6 +58,123 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out'>('all');
   const [dateFilter, setDateFilter] = useState('');
   const [emailFilter, setEmailFilter] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Date picker functions
+    // Close date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showDatePicker && !target.closest('.date-picker-container')) {
+        setShowDatePicker(false);
+      }
+    };
+
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
+
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Get day of week (0 = Sunday, 1 = Monday, etc.) and convert to Monday = 0
+    let startingDayOfWeek = firstDay.getDay();
+    startingDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1; // Convert Sunday to 6, others shift down
+
+    const days = [];
+    
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      const prevMonthDay = new Date(year, month, 1 - (startingDayOfWeek - i));
+      days.push({ 
+        date: prevMonthDay, 
+        isCurrentMonth: false,
+        day: prevMonthDay.getDate()
+      });
+    }
+    
+    // Add days of the current month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push({ 
+        date: new Date(year, month, day), 
+        isCurrentMonth: true,
+        day: day
+      });
+    }
+    
+    // Add days from next month to fill the grid (6 rows × 7 days = 42 cells)
+    const remainingCells = 42 - days.length;
+    for (let day = 1; day <= remainingCells; day++) {
+      const nextMonthDay = new Date(year, month + 1, day);
+      days.push({ 
+        date: nextMonthDay, 
+        isCurrentMonth: false,
+        day: day
+      });
+    }
+    
+    return days;
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const dateString = formatDate(date);
+    setDateFilter(dateString);
+    setShowDatePicker(false);
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentMonth(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setMonth(prev.getMonth() - 1);
+      } else {
+        newDate.setMonth(prev.getMonth() + 1);
+      }
+      return newDate;
+    });
+  };
+
+  const isDateSelected = (date: Date) => {
+    if (!dateFilter) return false;
+    const selectedDate = new Date(dateFilter + 'T00:00:00');
+    return date.getFullYear() === selectedDate.getFullYear() &&
+           date.getMonth() === selectedDate.getMonth() &&
+           date.getDate() === selectedDate.getDate();
+  };
+
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getFullYear() === today.getFullYear() &&
+           date.getMonth() === today.getMonth() &&
+           date.getDate() === today.getDate();
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((user) => {
@@ -123,7 +240,7 @@ export default function AdminPage() {
 
     // Date filter
     if (dateFilter) {
-      const filterDate = new Date(dateFilter);
+      const filterDate = new Date(dateFilter + 'T00:00:00'); // Ensure local date
       filtered = filtered.filter(visit => {
         if (!visit.date) return false;
         
@@ -136,8 +253,11 @@ export default function AdminPage() {
           return false;
         }
         
-        // Compare dates (ignore time)
-        return visitDate.toDateString() === filterDate.toDateString();
+        // Create local date for comparison (ignore time)
+        const visitLocalDate = new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate());
+        const filterLocalDate = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
+        
+        return visitLocalDate.getTime() === filterLocalDate.getTime();
       });
     }
 
@@ -583,17 +703,108 @@ export default function AdminPage() {
               </div>
 
               {/* Date Filter */}
-              <div>
+              <div className="relative date-picker-container">
                 <label htmlFor="dateFilter" className="block text-sm font-medium text-gray-700 mb-1">
                   Date
                 </label>
-                <input
-                  type="date"
-                  id="dateFilter"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
-                />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-white text-left flex items-center justify-between"
+                  >
+                    <span className={dateFilter ? 'text-gray-900' : 'text-gray-400'}>
+                      {dateFilter ? formatDisplayDate(dateFilter) : 'Select date...'}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  
+                  {showDatePicker && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-4 min-w-[280px]">
+                      {/* Calendar Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('prev')}
+                          className="p-1 hover:bg-gray-100 rounded"
+                          aria-label="Previous month"
+                        >
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <h3 className="text-sm font-medium text-gray-900">
+                          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('next')}
+                          className="p-1 hover:bg-gray-100 rounded"
+                          aria-label="Next month"
+                        >
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Calendar Grid */}
+                      <div className="grid grid-cols-7 gap-1 mb-2">
+                        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => (
+                          <div key={day} className="text-xs font-medium text-gray-500 text-center py-2">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-1">
+                        {getDaysInMonth(currentMonth).map((dayInfo, index) => {
+                          const isSelected = isDateSelected(dayInfo.date);
+                          const isTodayDate = isToday(dayInfo.date);
+                          
+                          return (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => handleDateSelect(dayInfo.date)}
+                              className={`
+                                w-8 h-8 text-xs rounded-full flex items-center justify-center transition-colors
+                                ${!dayInfo.isCurrentMonth 
+                                  ? 'text-gray-300 hover:text-gray-400' 
+                                  : isSelected
+                                    ? 'bg-blue-600 text-white font-medium'
+                                    : isTodayDate
+                                      ? 'bg-blue-100 text-blue-600 font-medium'
+                                      : 'text-gray-700 hover:bg-gray-100'
+                                }
+                              `}
+                            >
+                              {dayInfo.day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Clear button */}
+                      {dateFilter && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDateFilter('');
+                              setShowDatePicker(false);
+                            }}
+                            className="w-full text-sm text-gray-600 hover:text-gray-800 py-1"
+                          >
+                            Clear selection
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -676,7 +887,6 @@ export default function AdminPage() {
                     <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Name</th>
                     <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor #</th>
                     <th className="w-36 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Mobile</th>
-                    <th className="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Email</th>
                     <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Date</th>
                     <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-In Time</th>
                     <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-Out Time</th>
@@ -701,7 +911,7 @@ export default function AdminPage() {
                   ))}
                   {filteredVisits.length === 0 && !loading && (
                     <tr className="border-b border-gray-300">
-                      <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center">
                           {visits.length === 0 ? (
                             // No visits at all
@@ -842,17 +1052,6 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-48 px-6 py-4 border-r border-gray-300">
-          <input
-            type="email"
-            name="createdBy"
-            defaultValue={visit.createdBy || ''}
-            onChange={handleEditInputChange}
-            placeholder="Enter email address"
-            aria-label="Email"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
-          />
-        </td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
@@ -895,7 +1094,6 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
       <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorName || '-'}>{visit.visitorName || '-'}</td>
       <td className="w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
       <td className="w-36 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorMobile || '-'}>{visit.visitorMobile || '-'}</td>
-      <td className="w-48 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.createdBy || '-'}>{visit.createdBy || '-'}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
