@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- TEMPORARY RULES FOR TESTING ---
+    // Replace YOUR_EMAIL_HERE with your actual email address
+    function isTestUser() {
+      return request.auth != null && request.auth.token.email == 'YOUR_EMAIL_HERE@gmail.com';
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // --- users collection
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- branches collection 
+    match /branches/{branchId} {
+      allow read: if isSignedIn();
+      allow write: if isTestUser();
+    }
+
+    // --- visits collection (keep for backward compatibility)
+    match /visits/{visitId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // --- visitors collection (TEMPORARY PERMISSIVE RULES)
+    match /visitors/{visitId} {
+      // Allow test user to do everything
+      allow create, read, update, delete: if isTestUser();
+      
+      // Allow any signed-in user to read/create/update (for testing)
+      allow create, read, update: if isSignedIn();
+      
+      // Only test user can delete
+      allow delete: if isTestUser();
+    }
+
+    // --- enquiries collection
+    match /enquiries/{enqId} {
+      allow create, read, update: if isSignedIn();
+      allow delete: if isTestUser();
+    }
+
+    // --- timeline subcollections
+    match /{parentCollection=**}/timeline/{eventId} {
+      allow create, read: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

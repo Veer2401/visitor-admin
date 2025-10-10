@@ -338,7 +338,9 @@ export default function AdminPage() {
         checkInTime: now,
         checkOutTime: formData.status === 'checked_out' ? now : null,
         updatedAt: now,
-        signInMethod: 'google' // Add this to match your validation rules
+        signInMethod: 'google',
+        userId: user.uid, // Add user ID for Firestore rules
+        userEmail: user.email || '' // Add user email for Firestore rules
       };
       
       console.log('Payload to submit:', payload);
@@ -376,13 +378,15 @@ export default function AdminPage() {
   };
 
   const handleSaveEdit = async (visitId: string, updatedData: Partial<Visit>) => {
-    if (!db || !visitId) return;
+    if (!db || !visitId || !user) return;
 
     try {
       const ref = doc(db, VISITS_COLLECTION, visitId);
       await updateDoc(ref, {
         ...updatedData,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        userId: user.uid, // Ensure user context for updates
+        userEmail: user.email || ''
       });
       
       setVisits(prev => prev.map(visit => 
@@ -410,13 +414,15 @@ export default function AdminPage() {
   };
 
   const handleStatusChange = async (visitId: string, newStatus: 'checked_in' | 'checked_out') => {
-    if (!db || !visitId) return;
+    if (!db || !visitId || !user) return;
 
     try {
       const ref = doc(db, VISITS_COLLECTION, visitId);
       const updates: Partial<Visit> = { 
         status: newStatus,
-        updatedAt: serverTimestamp() 
+        updatedAt: serverTimestamp(),
+        userId: user.uid, // Ensure user context for updates
+        userEmail: user.email || ''
       };
       
       if (newStatus === 'checked_out') {

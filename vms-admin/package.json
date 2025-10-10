@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup-admin": "node admin-setup.js"
   },
   "dependencies": {
     "firebase": "^9.23.0",
@@ -24,5 +25,8 @@
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "firebase-admin": "^12.0.0"
   }
 }

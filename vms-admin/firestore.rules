@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- TEMPORARY TESTING RULES ---
+    // TODO: Replace with your actual email for testing
+    function isTestUser() {
+      return request.auth != null && request.auth.token.email in [
+        'YOUR_EMAIL_HERE@gmail.com',  // Replace with your email
+        'admin@example.com',
+        'test@example.com'
+      ];
+    }
+
+    // --- helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && 
+             (request.auth.token.role == 'super_admin' || isTestUser());
+    }
+
+    function isBranchAdmin() {
+      return isSignedIn() && 
+             (request.auth.token.role == 'branch_admin' || isTestUser());
+    }
+
+    function isStaff() {
+      return isSignedIn() && 
+             (request.auth.token.role == 'staff' || isTestUser());
+    }
+
+    // --- users collection
+    match /users/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- branches collection (optional)
+    match /branches/{branchId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // --- visits collection (simplified for visitor check-in app)
+    match /visits/{visitId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // --- visitors collection - TEMPORARILY RELAXED FOR TESTING
+    match /visitors/{visitId} {
+      // Temporarily allow test users to do everything
+      allow create, read, update, delete: if isTestUser();
+      
+      // For users with proper claims (when set up)
+      allow create: if isSignedIn() &&
+                    (isSuperAdmin() || isBranchAdmin() || isStaff()) &&
+                    (request.resource.data.keys().hasAll(['visitorName','visitorMobile','status']) ||
+                     isTestUser());
+
+      allow read: if isSignedIn() &&
+                  (isSuperAdmin() || 
+                   isTestUser() ||
+                   (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId == resource.data.branchId));
+
+      allow update: if isSignedIn() &&
+                    (isSuperAdmin() || isBranchAdmin() || isStaff() || isTestUser());
+
+      allow delete: if isSuperAdmin() || isTestUser();
+    }
+
+    // --- enquiries collection (simplified for visitor app)
+    match /enquiries/{enqId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSuperAdmin() || isTestUser();
+    }
+
+    // --- timeline subcollections
+    match /{parentCollection=**}/timeline/{eventId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
