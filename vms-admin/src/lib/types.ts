@@ -64,6 +64,8 @@ export interface Enquiry {
   reminderScheduledAt?: Timestamp | FieldValue | Date | null;
   reminderDuration?: number; // in hours (24, 72, 120)
   originalStatus?: 'in_progress' | 'completed' | 'cancelled'; // status before reminder
+  pendingSince?: Timestamp | FieldValue | Date | null; // when the enquiry became pending
+  lastNotificationShown?: Timestamp | FieldValue | Date | null; // when the last 72h notification was shown
 }
 
 export interface EnquiryFormData {

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { initFirebase, db, VISITS_COLLECTION, ENQUIRIES_COLLECTION } from '../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../lib/auth';
+import PendingEnquiryAlert from '../../components/PendingEnquiryAlert';
 import {
   collection as col,
   onSnapshot,
@@ -59,6 +60,10 @@ export default function AdminPage() {
   
   // Notifications states
   const [pendingEnquiries, setPendingEnquiries] = useState<Enquiry[]>([]);
+  
+  // Pending alert states
+  const [overdueEnquiries, setOverdueEnquiries] = useState<Enquiry[]>([]);
+  const [showPendingAlert, setShowPendingAlert] = useState(false);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -244,6 +249,71 @@ export default function AdminPage() {
     
     return () => unsub();
   }, [user]);
+
+  // Check for overdue enquiries (pending for more than 72 hours)
+  useEffect(() => {
+    if (!db || !user || pendingEnquiries.length === 0) return;
+
+    const checkOverdueEnquiries = () => {
+      const now = new Date().getTime();
+      const overdueThreshold = 72 * 60 * 60 * 1000; // 72 hours in milliseconds
+      
+      const overdue = pendingEnquiries.filter(enquiry => {
+        // Check when the enquiry became pending
+        const pendingSinceTime = enquiry.pendingSince && typeof enquiry.pendingSince === 'object' && 'toDate' in enquiry.pendingSince
+          ? enquiry.pendingSince.toDate().getTime()
+          : enquiry.pendingSince instanceof Date
+          ? enquiry.pendingSince.getTime()
+          : enquiry.createdAt && typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt
+          ? enquiry.createdAt.toDate().getTime()
+          : enquiry.createdAt instanceof Date
+          ? enquiry.createdAt.getTime()
+          : 0;
+
+        const timePending = now - pendingSinceTime;
+        
+        // Check if 72 hours have passed
+        if (timePending >= overdueThreshold) {
+          // Check if we should show notification (haven't shown in last 72 hours)
+          const lastNotificationTime = enquiry.lastNotificationShown && typeof enquiry.lastNotificationShown === 'object' && 'toDate' in enquiry.lastNotificationShown
+            ? enquiry.lastNotificationShown.toDate().getTime()
+            : enquiry.lastNotificationShown instanceof Date
+            ? enquiry.lastNotificationShown.getTime()
+            : 0;
+          
+          return (now - lastNotificationTime) >= overdueThreshold;
+        }
+        
+        return false;
+      });
+
+      if (overdue.length > 0) {
+        setOverdueEnquiries(overdue);
+        setShowPendingAlert(true);
+        
+        // Update the lastNotificationShown timestamp for these enquiries
+        overdue.forEach(async (enquiry) => {
+          if (enquiry.id && db) {
+            try {
+              const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiry.id);
+              await updateDoc(enquiryRef, {
+                lastNotificationShown: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
+            } catch (error) {
+              console.error('Error updating notification timestamp:', error);
+            }
+          }
+        });
+      }
+    };
+
+    // Check immediately and then every hour
+    checkOverdueEnquiries();
+    const interval = setInterval(checkOverdueEnquiries, 60 * 60 * 1000); // Check every hour
+
+    return () => clearInterval(interval);
+  }, [pendingEnquiries, user]);
 
   // Filter visits based on search and filter criteria
   useEffect(() => {
@@ -671,7 +741,7 @@ export default function AdminPage() {
                 href="/admin/notifications"
                 className="relative p-3 text-black hover:bg-gray-100 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300 flex items-center justify-center"
               >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
                 </svg>
                 {pendingEnquiries.length > 0 && (
@@ -1205,6 +1275,14 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Pending Enquiry Alert */}
+      {showPendingAlert && (
+        <PendingEnquiryAlert 
+          enquiries={overdueEnquiries}
+          onClose={() => setShowPendingAlert(false)}
+        />
+      )}
     </div>
   );
 }
