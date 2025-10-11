@@ -11,8 +11,7 @@ import {
   orderBy,
   serverTimestamp,
   where,
-  Firestore,
-  connectFirestoreEmulator
+  Firestore
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 

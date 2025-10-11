@@ -18,7 +18,8 @@ import {
   where
 } from 'firebase/firestore';
 import type { Visitor, TimestampField } from '../lib/types';
-import { getUserClaims, getCurrentUser, isSuperAdmin, isBranchAdmin, isStaff, getUserBranchId } from '../lib/auth';
+import type { UserClaims } from '../lib/auth';
+import { getUserClaims, getCurrentUser, isSuperAdmin, isBranchAdmin, getUserBranchId } from '../lib/auth';
 
 // Initialize from env (will be set in environment when running)
 if (!db && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
@@ -35,7 +36,7 @@ if (!db && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
 export default function VisitsTable() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userClaims, setUserClaims] = useState<any>(null);
+  const [userClaims, setUserClaims] = useState<UserClaims | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
 
   useEffect(() => {

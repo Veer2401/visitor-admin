@@ -5,7 +5,8 @@ export interface Visit {
   checkInTime?: Timestamp | FieldValue | Date | null;
   checkOutTime?: Timestamp | FieldValue | Date | null;
   createdAt?: Timestamp | FieldValue | Date | null;
-  createdBy?: string;
+  createdBy?: string; // User UID for security rules
+  createdByEmail?: string; // Email for display purposes
   date?: Timestamp | FieldValue | Date | null;
   patientName?: string;
   status?: 'checked_in' | 'checked_out';
@@ -45,3 +46,26 @@ export interface FirestoreTimestamp {
 }
 
 export type TimestampField = Timestamp | FirestoreTimestamp | FieldValue | Date | null | undefined;
+
+export interface Enquiry {
+  id?: string;
+  enquirerName?: string;
+  enquirerMobile?: string;
+  patientName?: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  createdAt?: Timestamp | FieldValue | Date | null;
+  updatedAt?: Timestamp | FieldValue | Date | null;
+  createdBy?: string; // User UID for security rules
+  createdByEmail?: string; // Email for display purposes
+  _manualEntry?: boolean;
+  userId?: string;
+  userEmail?: string;
+}
+
+export interface EnquiryFormData {
+  enquirerName: string;
+  enquirerMobile: string;
+  patientName: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  createdBy: string;
+}
