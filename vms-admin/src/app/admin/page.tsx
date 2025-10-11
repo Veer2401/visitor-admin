@@ -552,9 +552,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -565,7 +565,7 @@ export default function AdminPage() {
                 height={64}
                 className="h-16 w-auto mr-6"
               />
-              <div>
+              <div className="mt-2">
                 <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
                 {/* <p className="mt-1 text-sm text-gray-600">Manage and monitor all visitor entries</p> */}
               </div>
@@ -587,41 +587,44 @@ export default function AdminPage() {
       </header>
 
       {/* Navigation Section */}
-      <div className="bg-white border-b">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex space-x-4">
+      <div className="bg-white/60 backdrop-blur-sm border-b border-gray-200/50">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex space-x-6">
             <Link
               href="/admin"
-              className="flex items-center border-2 rounded-xl px-4 py-3 transition-colors duration-200 group"
-              style={{ borderColor: '#1C4B46' }}
+              className="flex items-center border-2 rounded-2xl px-6 py-4 shadow-xl scale-105 transition-all duration-300 group backdrop-blur-sm"
+              style={{ 
+                backgroundColor: '#1C4B46',
+                borderColor: '#1C4B46'
+              }}
             >
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1C4B46' }}>
+              <div className="flex items-center space-x-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-white/20">
                   <img 
                     src="/visits.png" 
                     alt="Visits" 
-                    className="w-5 h-5"
+                    className="w-7 h-7 rounded-lg"
                   />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">Visits</h3>
-                  <p className="text-xs text-gray-600">Check-in patients and manage visits</p>
+                  <h3 className="text-lg font-bold text-white">Visits</h3>
+                  <p className="text-sm text-white/80">Check-in patients and manage visits</p>
                 </div>
               </div>
             </Link>
             <Link
               href="/admin/enquiries"
-              className="flex items-center border-2 border-gray-300 rounded-xl px-4 py-3 hover:border-gray-400 transition-colors duration-200 group"
+              className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
             >
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1C4B46' }}>
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-center space-x-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
+                  <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">Enquiries</h3>
-                  <p className="text-xs text-gray-600">Submit and track enquiries</p>
+                  <h3 className="text-lg font-bold text-gray-900">Enquiries</h3>
+                  <p className="text-sm text-gray-600">Submit and track enquiries</p>
                 </div>
               </div>
             </Link>
@@ -631,14 +634,14 @@ export default function AdminPage() {
 
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Add New Entry Form */}
-        <div className="bg-white rounded-lg shadow-sm border mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Add New Visit Entry</h2>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 mb-8 overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
+            <h2 className="text-xl font-bold text-gray-900">Add New Visit Entry</h2>
           </div>
           <form onSubmit={handleSubmit} className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="min-w-0">
-                <label htmlFor="patientName" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="patientName" className="block text-sm font-semibold text-gray-700 mb-1">
                   Patient Name
                 </label>
                 <input
@@ -648,12 +651,15 @@ export default function AdminPage() {
                   value={formData.patientName}
                   onChange={handleInputChange}
                   placeholder="Enter patient name"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-900 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                   required
                 />
               </div>
               <div className="min-w-0">
-                <label htmlFor="visitorName" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="visitorName" className="block text-sm font-semibold text-gray-700 mb-1">
                   Visitor Name
                 </label>
                 <input
@@ -663,12 +669,15 @@ export default function AdminPage() {
                   value={formData.visitorName}
                   onChange={handleInputChange}
                   placeholder="Enter visitor name"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-900 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                   required
                 />
               </div>
               <div className="min-w-0">
-                <label htmlFor="visitorMobile" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="visitorMobile" className="block text-sm font-semibold text-gray-700 mb-1">
                   Visitor Mobile
                 </label>
                 <input
@@ -678,13 +687,15 @@ export default function AdminPage() {
                   value={formData.visitorMobile}
                   onChange={handleInputChange}
                   placeholder="+91 1234567890"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                   required
                 />
-                {/* <p className="mt-1 text-xs text-gray-500">Format: +91 followed by 10 digits</p> */}
               </div>
               <div className="min-w-0">
-                <label htmlFor="createdBy" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="createdBy" className="block text-sm font-semibold text-gray-700 mb-1">
                   Email
                 </label>
                 <input
@@ -694,12 +705,15 @@ export default function AdminPage() {
                   value={formData.createdBy}
                   onChange={handleInputChange}
                   placeholder="Enter email address or type 'none'"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-black text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                   required
                 />
               </div>
               <div className="min-w-0">
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="status" className="block text-sm font-semibold text-gray-700 mb-1">
                   Status
                 </label>
                 <select
@@ -707,7 +721,10 @@ export default function AdminPage() {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                 >
                   <option value="checked_in">Checked In</option>
                   <option value="checked_out">Checked Out</option>
@@ -730,16 +747,15 @@ export default function AdminPage() {
         </div>
 
         {/* Search and Filter Section */}
-        <div className="bg-white rounded-lg shadow-sm border mb-8">
-          <div className="px-6 py-3 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Search & Filter Visits</h2>
-            <p className="text-sm text-gray-600">Use the filters below to find specific visitor records</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 mb-8">
+          <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50 rounded-t-3xl">
+            <h2 className="text-xl font-bold text-gray-900">Search & Filter Visits</h2>
           </div>
-          <div className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-3">
+          <div className="p-6 rounded-b-3xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
               {/* Search Box */}
               <div className="lg:col-span-2">
-                <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="search" className="block text-sm font-semibold text-gray-700 mb-1">
                   Search
                 </label>
                 <input
@@ -748,20 +764,26 @@ export default function AdminPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by patient name, visitor name, or mobile..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                 />
               </div>
 
               {/* Status Filter */}
               <div>
-                <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="statusFilter" className="block text-sm font-semibold text-gray-700 mb-1">
                   Status
                 </label>
                 <select
                   id="statusFilter"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as 'all' | 'checked_in' | 'checked_out')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                 >
                   <option value="all">All Status</option>
                   <option value="checked_in">Checked In</option>
@@ -771,7 +793,7 @@ export default function AdminPage() {
 
               {/* Email Filter */}
               <div>
-                <label htmlFor="emailFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="emailFilter" className="block text-sm font-semibold text-gray-700 mb-1">
                   Email
                 </label>
                 <input
@@ -780,20 +802,26 @@ export default function AdminPage() {
                   value={emailFilter}
                   onChange={(e) => setEmailFilter(e.target.value)}
                   placeholder="Filter by email..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
+                  style={{ 
+                    '--tw-ring-color': '#1C4B46'
+                  } as React.CSSProperties}
                 />
               </div>
 
               {/* Date Filter */}
               <div className="relative date-picker-container">
-                <label htmlFor="dateFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="dateFilter" className="block text-sm font-semibold text-gray-700 mb-1">
                   Date
                 </label>
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setShowDatePicker(!showDatePicker)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-white text-left flex items-center justify-between"
+                    className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900 bg-white/80 backdrop-blur-sm text-left flex items-center justify-between transition-all duration-200 hover:shadow-md"
+                    style={{ 
+                      '--tw-ring-color': '#1C4B46'
+                    } as React.CSSProperties}
                   >
                     <span className={dateFilter ? 'text-gray-900' : 'text-gray-400'}>
                       {dateFilter ? formatDisplayDate(dateFilter) : 'Select date...'}
@@ -802,9 +830,23 @@ export default function AdminPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </button>
-                  
-                  {showDatePicker && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-4 min-w-[280px]">
+                </div>
+                
+                {showDatePicker && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 bg-black/20 z-[99998]"
+                      onClick={() => setShowDatePicker(false)}
+                    />
+                    {/* Calendar Modal */}
+                    <div className="fixed bg-white border border-gray-300 rounded-lg shadow-2xl z-[99999] p-4 min-w-[280px]"
+                      style={{
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                    >
                       {/* Calendar Header */}
                       <div className="flex items-center justify-between mb-4">
                         <button
@@ -856,12 +898,13 @@ export default function AdminPage() {
                                 ${!dayInfo.isCurrentMonth 
                                   ? 'text-gray-300 hover:text-gray-400' 
                                   : isSelected
-                                    ? 'bg-blue-600 text-white font-medium'
+                                    ? 'text-white font-medium'
                                     : isTodayDate
-                                      ? 'bg-blue-100 text-blue-600 font-medium'
+                                      ? 'text-white font-medium'
                                       : 'text-gray-700 hover:bg-gray-100'
                                 }
                               `}
+                              style={isSelected || isTodayDate ? { backgroundColor: '#1C4B46' } : {}}
                             >
                               {dayInfo.day}
                             </button>
@@ -885,8 +928,8 @@ export default function AdminPage() {
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -919,13 +962,13 @@ export default function AdminPage() {
         </div>
 
         {/* Visits Table */}
-        <div className="bg-white rounded-lg shadow-sm border visits-table">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden visits-table">
+          <div className="px-8 py-6 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-xl font-bold text-gray-900">
                   All Visits
-                  <span className="ml-2 text-sm font-normal text-gray-500">
+                  <span className="ml-2 text-sm font-medium text-gray-600">
                     (Page {currentPage} of {totalPages || 1})
                   </span>
                 </h2>
@@ -958,24 +1001,24 @@ export default function AdminPage() {
           </div>
           
           {loading ? (
-            <div className="p-8 text-center">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-2 text-gray-600">Loading visits...</p>
+            <div className="p-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-4" style={{ borderTopColor: '#1C4B46' }}></div>
+              <p className="mt-4 text-gray-600 font-medium">Loading visits...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 table-fixed border border-gray-300">
-                <thead className="bg-gray-50">
+            <div className="overflow-x-auto rounded-3xl">
+              <table className="min-w-full divide-y divide-gray-200/50 table-fixed bg-white/60 backdrop-blur-sm rounded-3xl overflow-hidden shadow-xl">
+                <thead className="bg-gradient-to-r from-gray-50 to-blue-50/30">
                   <tr>
-                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Patient Name</th>
-                    <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Name</th>
-                    <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor #</th>
-                    <th className="w-36 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Visitor Mobile</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Date</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-In Time</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Check-Out Time</th>
-                    <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Status</th>
-                    <th className="w-40 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">Updated At</th>
+                    <th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Patient Name</th>
+                    <th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Name</th>
+                    <th className="w-20 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor #</th>
+                    <th className="w-36 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Mobile</th>
+                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Date</th>
+                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Check-In Time</th>
+                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Check-Out Time</th>
+                    <th className="w-28 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Status</th>
+                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Updated At</th>
                     <th className="w-44 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -1037,8 +1080,8 @@ export default function AdminPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white rounded-lg shadow-sm border mt-4">
-            <div className="px-6 py-4">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 mt-8 overflow-hidden">
+            <div className="px-8 py-6">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-sm text-gray-600">
                   Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredVisits.length)} of {filteredVisits.length} visits
