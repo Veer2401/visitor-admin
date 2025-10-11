@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { initFirebase, db, VISITS_COLLECTION } from '../../lib/firebase';
+import { initFirebase, db, VISITS_COLLECTION, ENQUIRIES_COLLECTION } from '../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../lib/auth';
 import {
   collection as col,
@@ -17,9 +17,10 @@ import {
   serverTimestamp,
   QuerySnapshot,
   DocumentData,
-  DocumentSnapshot
+  DocumentSnapshot,
+  where
 } from 'firebase/firestore';
-import type { Visit, VisitFormData, TimestampField } from '../../lib/types';
+import type { Visit, VisitFormData, TimestampField, Enquiry } from '../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)
@@ -55,6 +56,9 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Notifications states
+  const [pendingEnquiries, setPendingEnquiries] = useState<Enquiry[]>([]);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -215,6 +219,29 @@ export default function AdminPage() {
       console.error('Firestore error:', error);
       setLoading(false);
     });
+    return () => unsub();
+  }, [user]);
+
+  // Listen for pending enquiries for notifications
+  useEffect(() => {
+    if (!db || !user) return;
+    
+    const q = query(
+      col(db, ENQUIRIES_COLLECTION), 
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const unsub = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+      const items: Enquiry[] = [];
+      snapshot.forEach((docSnap: DocumentSnapshot<DocumentData>) => 
+        items.push({ id: docSnap.id, ...docSnap.data() } as Enquiry)
+      );
+      setPendingEnquiries(items);
+    }, (error) => {
+      console.error('Firestore error for enquiries:', error);
+    });
+    
     return () => unsub();
   }, [user]);
 
@@ -589,45 +616,80 @@ export default function AdminPage() {
       {/* Navigation Section */}
       <div className="bg-white/60 backdrop-blur-sm border-b border-gray-200/50">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex space-x-6">
-            <Link
-              href="/admin"
-              className="flex items-center border-2 rounded-2xl px-6 py-4 shadow-xl scale-105 transition-all duration-300 group backdrop-blur-sm"
-              style={{ 
-                backgroundColor: '#1C4B46',
-                borderColor: '#1C4B46'
-              }}
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-white/20">
-                  <img 
-                    src="/visits.png" 
-                    alt="Visits" 
-                    className="w-7 h-7 rounded-lg"
-                  />
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-6">
+              <Link
+                href="/admin"
+                className="flex items-center border-2 rounded-2xl px-6 py-4 shadow-xl scale-105 transition-all duration-300 group backdrop-blur-sm"
+                style={{ 
+                  backgroundColor: '#1C4B46',
+                  borderColor: '#1C4B46'
+                }}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-white/20">
+                    <img 
+                      src="/visits.png" 
+                      alt="Visits" 
+                      className="w-7 h-7 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Visits</h3>
+                    <p className="text-sm text-white/80">Check-in patients and manage visits</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Visits</h3>
-                  <p className="text-sm text-white/80">Check-in patients and manage visits</p>
+              </Link>
+              <Link
+                href="/admin/enquiries"
+                className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
+                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Enquiries</h3>
+                    <p className="text-sm text-gray-600">Submit and track enquiries</p>
+                  </div>
                 </div>
-              </div>
-            </Link>
-            <Link
-              href="/admin/enquiries"
-              className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
-                  <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
-                  </svg>
+              </Link>
+              <Link
+                href="/admin/analytics"
+                className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
+                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">View Analytics</h3>
+                    <p className="text-sm text-gray-600">View data insights and reports</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Enquiries</h3>
-                  <p className="text-sm text-gray-600">Submit and track enquiries</p>
-                </div>
-              </div>
-            </Link>
+              </Link>
+            </div>
+            
+            {/* Notifications */}
+            <div className="relative">
+              <Link
+                href="/admin/notifications"
+                className="relative p-3 text-black hover:bg-gray-100 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300 flex items-center justify-center"
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+                </svg>
+                {pendingEnquiries.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                    {pendingEnquiries.length}
+                  </span>
+                )}
+              </Link>
+            </div>
           </div>
         </div>
       </div>
