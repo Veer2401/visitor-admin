@@ -16,6 +16,9 @@ export interface Visit {
   signInMethod?: 'google' | 'manual';
   userId?: string; // Firebase Auth user ID
   userEmail?: string; // Firebase Auth user email
+  visitDetails?: string; // Purpose of visit or details
+  attendedBy?: string; // Name of staff member attending the visit
+  attendedAt?: Timestamp | FieldValue | Date | null; // When staff was assigned
 }
 
 export interface Visitor {

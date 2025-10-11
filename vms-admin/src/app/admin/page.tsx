@@ -1146,7 +1146,7 @@ export default function AdminPage() {
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Check-Out Time</th>
                     <th className="w-28 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Status</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Updated At</th>
-                    <th className="w-44 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="w-56 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1430,7 +1430,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
           </select>
         </td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
-        <td className="w-44 px-6 py-4">
+        <td className="w-56 px-6 py-4">
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
@@ -1461,7 +1461,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
       <td className="w-28 px-6 py-4 border-r border-gray-300">{getStatusBadge(visit.status || 'unknown')}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
-      <td className="w-44 px-6 py-4">
+      <td className="w-56 px-6 py-4">
         <div className="flex space-x-2">
           <button
             onClick={() => visit.id && onEdit(visit.id)}
@@ -1478,6 +1478,12 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
           >
             Edit
           </button>
+          <Link
+            href={`/admin/visits/details?id=${visit.id}`}
+            className="text-blue-600 hover:text-blue-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            Details
+          </Link>
           <button
             onClick={() => visit.id && visit.status && onStatusChange(visit.id, visit.status === 'checked_in' ? 'checked_out' : 'checked_in')}
             className="text-purple-600 hover:text-purple-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-purple-50 transition-colors"

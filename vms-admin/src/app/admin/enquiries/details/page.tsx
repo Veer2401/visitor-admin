@@ -223,7 +223,22 @@ export default function EnquiryDetailsPage() {
       status: 'completed'
     });
 
-    // 3. Progress status events
+    // 3. Enquiry type and details (if available)
+    if (enquiry.enquiryDetails) {
+      timeline.push({
+        id: 'enquiry_type',
+        title: 'Enquiry Type',
+        description: `${enquiry.enquiryDetails}`,
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'completed'
+      });
+    }
+
+    // 4. Progress status events
     if (enquiry.status === 'pending') {
       timeline.push({
         id: 'pending',
@@ -279,7 +294,7 @@ export default function EnquiryDetailsPage() {
         status: 'current'
       });
 
-      // 4. Enquiry checkout by staff (only if completed)
+      // 5. Enquiry checkout by staff (only if completed)
       timeline.push({
         id: 'checkout',
         title: 'Enquiry checked out by staff',
@@ -793,26 +808,28 @@ export default function EnquiryDetailsPage() {
               <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Enquiry Details</h2>
-                  {!isEditingDetails && (
-                    <button
-                      onClick={() => setIsEditingDetails(true)}
-                      className="text-sm font-bold px-4 py-2 rounded-xl transition-colors"
-                      style={{ color: '#1C4B46' }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#0F2B26';
-                        e.currentTarget.style.backgroundColor = '#E6F3F1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = '#1C4B46';
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Edit
-                    </button>
-                  )}
+                  <div className="flex space-x-2">
+                    {!isEditingDetails && (
+                      <button
+                        onClick={() => setIsEditingDetails(true)}
+                        className="text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                        style={{ color: '#1C4B46' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#0F2B26';
+                          e.currentTarget.style.backgroundColor = '#E6F3F1';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#1C4B46';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        {enquiryDetails ? 'Edit' : 'Add Details'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="p-6">
@@ -853,9 +870,11 @@ export default function EnquiryDetailsPage() {
                 ) : (
                   <div className="min-h-[120px]">
                     {enquiryDetails ? (
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{enquiryDetails}</p>
+                      <div>
+                        <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{enquiryDetails}</p>
+                      </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click edit to add details.</p>
+                      <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click "Add Details" to enter custom details.</p>
                     )}
                   </div>
                 )}
