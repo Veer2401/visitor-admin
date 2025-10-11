@@ -47,3 +47,5 @@ export const VISITORS_COLLECTION = 'visitors';
 export const BRANCHES_COLLECTION = 'branches';
 export const USERS_COLLECTION = 'users';
 export const ENQUIRIES_COLLECTION = 'enquiries';
+export const DOCTORS_COLLECTION = 'doctors';
+export const STAFF_COLLECTION = 'staff';

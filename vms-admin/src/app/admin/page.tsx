@@ -272,7 +272,7 @@ export default function AdminPage() {
 
         const timePending = now - pendingSinceTime;
         
-        // Check if 72 hours have passed
+        // Only check enquiries that have been pending for more than 72 hours
         if (timePending >= overdueThreshold) {
           // Check if we should show notification (haven't shown in last 72 hours)
           const lastNotificationTime = enquiry.lastNotificationShown && typeof enquiry.lastNotificationShown === 'object' && 'toDate' in enquiry.lastNotificationShown
@@ -281,6 +281,7 @@ export default function AdminPage() {
             ? enquiry.lastNotificationShown.getTime()
             : 0;
           
+          // Only show notification if we haven't shown one in the last 72 hours
           return (now - lastNotificationTime) >= overdueThreshold;
         }
         
@@ -308,11 +309,18 @@ export default function AdminPage() {
       }
     };
 
-    // Check immediately and then every hour
-    checkOverdueEnquiries();
-    const interval = setInterval(checkOverdueEnquiries, 60 * 60 * 1000); // Check every hour
+    // Add a delay before the first check to avoid immediate alerts for new enquiries
+    const initialDelay = setTimeout(() => {
+      checkOverdueEnquiries();
+      // Then check every hour
+      const interval = setInterval(checkOverdueEnquiries, 60 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }, 5000); // Wait 5 seconds before first check
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialDelay);
+    };
   }, [pendingEnquiries, user]);
 
   // Filter visits based on search and filter criteria
@@ -659,6 +667,25 @@ export default function AdminPage() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Add Doctor and Add Staff buttons */}
+              <Link 
+                href="/admin/doctors" 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200 flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>Add Doctor</span>
+              </Link>
+              <Link 
+                href="/admin/staff" 
+                className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200 flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>Add Staff</span>
+              </Link>
               <div className="text-lg text-gray-700">
                 <span className="font-normal">Welcome, </span>
                 <span className="font-semibold">{user?.displayName || user?.email}</span>

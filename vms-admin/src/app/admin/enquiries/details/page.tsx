@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { initFirebase, db, ENQUIRIES_COLLECTION } from '../../../../lib/firebase';
+import { initFirebase, db, ENQUIRIES_COLLECTION, STAFF_COLLECTION } from '../../../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../../lib/auth';
 import {
   collection as col,
@@ -19,7 +19,7 @@ import {
   DocumentSnapshot,
   where
 } from 'firebase/firestore';
-import type { Enquiry, TimestampField } from '../../../../lib/types';
+import type { Enquiry, TimestampField, Staff } from '../../../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)
@@ -52,6 +52,10 @@ export default function EnquiryDetailsPage() {
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [pendingEnquiries, setPendingEnquiries] = useState<Enquiry[]>([]);
   const [isSettingReminder, setIsSettingReminder] = useState(false);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+  const [isAssigningStaff, setIsAssigningStaff] = useState(false);
+  const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -65,6 +69,24 @@ export default function EnquiryDetailsPage() {
 
     return () => unsubscribe();
   }, []);
+
+  // Fetch staff data
+  useEffect(() => {
+    if (!db || !user) return;
+    
+    const staffQuery = query(col(db, STAFF_COLLECTION));
+    const unsubStaff = onSnapshot(staffQuery, (snapshot) => {
+      const items: Staff[] = [];
+      snapshot.forEach((docSnap) => 
+        items.push({ id: docSnap.id, ...docSnap.data() } as Staff)
+      );
+      setStaff(items);
+    }, (error) => {
+      console.error('Error fetching staff:', error);
+    });
+    
+    return () => unsubStaff();
+  }, [user]);
 
   // Check for expired reminders periodically
   useEffect(() => {
@@ -206,7 +228,9 @@ export default function EnquiryDetailsPage() {
       timeline.push({
         id: 'pending',
         title: 'Enquiry Status',
-        description: 'Pending - Waiting for staff review',
+        description: enquiry.assignedStaff 
+          ? `${enquiry.assignedStaff} is reviewing the enquiry`
+          : 'Pending - Waiting for staff review',
         timestamp: enquiry.updatedAt ? 
           (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
             enquiry.updatedAt.toDate() : 
@@ -218,7 +242,9 @@ export default function EnquiryDetailsPage() {
       timeline.push({
         id: 'in_progress',
         title: 'Enquiry Status',
-        description: 'In Progress - Being processed by staff',
+        description: enquiry.assignedStaff 
+          ? `${enquiry.assignedStaff} is processing the enquiry`
+          : 'In Progress - Being processed by staff',
         timestamp: enquiry.updatedAt ? 
           (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
             enquiry.updatedAt.toDate() : 
@@ -230,7 +256,9 @@ export default function EnquiryDetailsPage() {
       timeline.push({
         id: 'in_progress',
         title: 'Enquiry Status',
-        description: 'In Progress - Processed by staff',
+        description: enquiry.assignedStaff 
+          ? `${enquiry.assignedStaff} processed the enquiry`
+          : 'In Progress - Processed by staff',
         timestamp: enquiry.updatedAt ? 
           (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
             enquiry.updatedAt.toDate() : 
@@ -255,7 +283,9 @@ export default function EnquiryDetailsPage() {
       timeline.push({
         id: 'checkout',
         title: 'Enquiry checked out by staff',
-        description: 'Process completed and closed',
+        description: enquiry.assignedStaff 
+          ? `Enquiry checked out by ${enquiry.assignedStaff}`
+          : 'Process completed and closed',
         timestamp: enquiry.updatedAt ? 
           (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
             enquiry.updatedAt.toDate() : 
@@ -367,6 +397,50 @@ export default function EnquiryDetailsPage() {
       alert('Failed to cancel reminder. Please try again.');
     }
     setIsSettingReminder(false);
+  };
+
+  const handleAssignStaff = async (staffName: string) => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsAssigningStaff(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        assignedStaff: staffName,
+        status: 'in_progress',
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      setShowStaffDropdown(false);
+    } catch (error) {
+      console.error('Error assigning staff:', error);
+      alert('Failed to assign staff. Please try again.');
+    }
+    setIsAssigningStaff(false);
+  };
+
+  const handleMarkAsCompleted = async () => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsMarkingCompleted(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        status: 'completed',
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      // Optional: Show success message
+      // alert('Enquiry marked as completed successfully.');
+    } catch (error) {
+      console.error('Error marking enquiry as completed:', error);
+      alert('Failed to mark enquiry as completed. Please try again.');
+    }
+    setIsMarkingCompleted(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -621,7 +695,52 @@ export default function EnquiryDetailsPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-500">Status</span>
-                    {getStatusBadge(enquiry.status || 'pending')}
+                    <div className="flex items-center space-x-3">
+                      {getStatusBadge(enquiry.status || 'pending')}
+                      {enquiry.status && ['pending', 'in_progress'].includes(enquiry.status) && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowStaffDropdown(!showStaffDropdown)}
+                            disabled={isAssigningStaff}
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1 rounded-lg text-xs transition-colors duration-200 disabled:opacity-50 flex items-center space-x-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span>{enquiry.assignedStaff ? 'Reassign Staff' : 'Assign Staff'}</span>
+                          </button>
+                          
+                          {showStaffDropdown && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowStaffDropdown(false)}
+                              />
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <div className="py-1">
+                                  {staff.length === 0 ? (
+                                    <div className="px-4 py-2 text-sm text-gray-500">
+                                      No staff available
+                                    </div>
+                                  ) : (
+                                    staff.map((staffMember) => (
+                                      <button
+                                        key={staffMember.id}
+                                        onClick={() => handleAssignStaff(staffMember.staffName || 'Unknown Staff')}
+                                        disabled={isAssigningStaff}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 disabled:opacity-50"
+                                      >
+                                        {staffMember.staffName || 'Unknown Staff'}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -637,6 +756,12 @@ export default function EnquiryDetailsPage() {
                     <span className="text-sm font-medium text-gray-500">Patient Name</span>
                     <p className="mt-1 text-sm font-semibold text-gray-900">{enquiry.patientName || 'N/A'}</p>
                   </div>
+                  {enquiry.assignedStaff && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Assigned Staff</span>
+                      <p className="mt-1 text-sm font-semibold text-green-700">{enquiry.assignedStaff}</p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <span className="text-sm font-medium text-gray-500">Created At</span>
@@ -792,6 +917,28 @@ export default function EnquiryDetailsPage() {
                   ))}
                 </ul>
               </div>
+              
+              {/* Mark as Completed Button */}
+              {enquiry.status && ['pending', 'in_progress'].includes(enquiry.status) && (
+                <div className="mt-6 pt-6 border-t border-gray-200/50">
+                  <button
+                    onClick={handleMarkAsCompleted}
+                    disabled={isMarkingCompleted}
+                    className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                    style={{ 
+                      backgroundColor: isMarkingCompleted ? '#8DA7A3' : '#10B981',
+                      color: 'white'
+                    }}
+                    onMouseEnter={(e) => !isMarkingCompleted && (e.currentTarget.style.backgroundColor = '#059669')}
+                    onMouseLeave={(e) => !isMarkingCompleted && (e.currentTarget.style.backgroundColor = '#10B981')}
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {isMarkingCompleted ? 'Marking as Completed...' : 'Mark as Completed'}
+                  </button>
+                </div>
+              )}
               
               {/* Reminder Buttons */}
               {enquiry.status && ['in_progress', 'completed', 'cancelled'].includes(enquiry.status) && (

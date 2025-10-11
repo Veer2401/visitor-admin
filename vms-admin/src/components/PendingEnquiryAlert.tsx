@@ -39,8 +39,8 @@ export default function PendingEnquiryAlert({ enquiries, onClose }: PendingEnqui
         <div className="px-6 py-4">
           <p className="text-gray-700 mb-4">
             {enquiries.length === 1 
-              ? 'The following enquiry has been pending for more than 72 hours:'
-              : `${enquiries.length} enquiries have been pending for more than 72 hours:`
+              ? 'Note: You will be notified about this enquiry after 72 hours again since its pending'
+              : `Note: You will be notified about these ${enquiries.length} enquiries after 72 hours again since they are pending`
             }
           </p>
 

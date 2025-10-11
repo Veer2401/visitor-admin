@@ -66,6 +66,7 @@ export interface Enquiry {
   originalStatus?: 'in_progress' | 'completed' | 'cancelled'; // status before reminder
   pendingSince?: Timestamp | FieldValue | Date | null; // when the enquiry became pending
   lastNotificationShown?: Timestamp | FieldValue | Date | null; // when the last 72h notification was shown
+  assignedStaff?: string; // Name of assigned staff member
 }
 
 export interface EnquiryFormData {
@@ -74,4 +75,24 @@ export interface EnquiryFormData {
   patientName: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   createdBy: string;
+}
+
+export interface Doctor {
+  id?: string;
+  doctorName: string;
+  createdAt?: Timestamp | FieldValue | Date | null;
+  updatedAt?: Timestamp | FieldValue | Date | null;
+  createdBy?: string; // User UID for security rules
+  userId?: string; // Firebase Auth user ID
+  userEmail?: string; // Firebase Auth user email
+}
+
+export interface Staff {
+  id?: string;
+  staffName: string;
+  createdAt?: Timestamp | FieldValue | Date | null;
+  updatedAt?: Timestamp | FieldValue | Date | null;
+  createdBy?: string; // User UID for security rules
+  userId?: string; // Firebase Auth user ID
+  userEmail?: string; // Firebase Auth user email
 }
