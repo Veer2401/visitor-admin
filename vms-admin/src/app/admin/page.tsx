@@ -264,14 +264,6 @@ export default function AdminPage() {
       filtered = filtered.filter(visit => visit.status === statusFilter);
     }
 
-    // Email filter
-    if (emailFilter.trim()) {
-      const emailQuery = emailFilter.toLowerCase().trim();
-      filtered = filtered.filter(visit => 
-        visit.createdByEmail?.toLowerCase().includes(emailQuery)
-      );
-    }
-
     // Date filter
     if (dateFilter) {
       const filterDate = new Date(dateFilter + 'T00:00:00'); // Ensure local date
@@ -297,7 +289,7 @@ export default function AdminPage() {
 
     setFilteredVisits(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [visits, searchQuery, statusFilter, dateFilter, emailFilter]);
+  }, [visits, searchQuery, statusFilter, dateFilter]);
 
   // Pagination logic
   useEffect(() => {
@@ -499,7 +491,6 @@ export default function AdminPage() {
     setSearchQuery('');
     setStatusFilter('all');
     setDateFilter('');
-    setEmailFilter('');
     setCurrentPage(1);
   };
 
@@ -814,7 +805,7 @@ export default function AdminPage() {
             <h2 className="text-xl font-bold text-gray-900">Search & Filter Visits</h2>
           </div>
           <div className="p-6 rounded-b-3xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Search Box */}
               <div className="lg:col-span-2">
                 <label htmlFor="search" className="block text-sm font-semibold text-gray-700 mb-1">
@@ -851,24 +842,6 @@ export default function AdminPage() {
                   <option value="checked_in">Checked In</option>
                   <option value="checked_out">Checked Out</option>
                 </select>
-              </div>
-
-              {/* Email Filter */}
-              <div>
-                <label htmlFor="emailFilter" className="block text-sm font-semibold text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="text"
-                  id="emailFilter"
-                  value={emailFilter}
-                  onChange={(e) => setEmailFilter(e.target.value)}
-                  placeholder="Filter by email..."
-                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
-                  style={{ 
-                    '--tw-ring-color': '#1C4B46'
-                  } as React.CSSProperties}
-                />
               </div>
 
               {/* Date Filter */}
@@ -1002,13 +975,13 @@ export default function AdminPage() {
                 {filteredVisits.length !== visits.length && (
                   <span className="text-gray-500"> (filtered from {visits.length} total)</span>
                 )}
-                {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+                {(searchQuery || statusFilter !== 'all' || dateFilter) && (
                   <span className="ml-2 text-blue-600">• Filters applied</span>
                 )}
               </div>
               
               {/* Clear Filters Button */}
-              {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+              {(searchQuery || statusFilter !== 'all' || dateFilter) && (
                 <button
                   onClick={clearAllFilters}
                   className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200 flex items-center"
@@ -1046,11 +1019,6 @@ export default function AdminPage() {
                 {statusFilter !== 'all' && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     Status: {statusFilter === 'checked_in' ? 'Checked In' : 'Checked Out'}
-                  </span>
-                )}
-                {emailFilter && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    Email: &quot;{emailFilter}&quot;
                   </span>
                 )}
                 {dateFilter && (

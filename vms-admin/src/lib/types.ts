@@ -52,6 +52,7 @@ export interface Enquiry {
   enquirerName?: string;
   enquirerMobile?: string;
   patientName?: string;
+  enquiryDetails?: string;
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   createdAt?: Timestamp | FieldValue | Date | null;
   updatedAt?: Timestamp | FieldValue | Date | null;
@@ -60,6 +61,9 @@ export interface Enquiry {
   _manualEntry?: boolean;
   userId?: string;
   userEmail?: string;
+  reminderScheduledAt?: Timestamp | FieldValue | Date | null;
+  reminderDuration?: number; // in hours (24, 72, 120)
+  originalStatus?: 'in_progress' | 'completed' | 'cancelled'; // status before reminder
 }
 
 export interface EnquiryFormData {

@@ -256,13 +256,6 @@ export default function EnquiriesPage() {
       filtered = filtered.filter(enquiry => enquiry.status === statusFilter);
     }
 
-    if (emailFilter.trim()) {
-      const emailQuery = emailFilter.toLowerCase().trim();
-      filtered = filtered.filter(enquiry => 
-        enquiry.createdByEmail?.toLowerCase().includes(emailQuery)
-      );
-    }
-
     if (dateFilter) {
       const filterDate = new Date(dateFilter + 'T00:00:00');
       filtered = filtered.filter(enquiry => {
@@ -285,7 +278,7 @@ export default function EnquiriesPage() {
     }
 
     setFilteredEnquiries(filtered);
-  }, [enquiries, searchQuery, statusFilter, dateFilter, emailFilter]);
+  }, [enquiries, searchQuery, statusFilter, dateFilter]);
 
   // Handle highlighting enquiry from notifications
   useEffect(() => {
@@ -445,7 +438,6 @@ export default function EnquiriesPage() {
     setSearchQuery('');
     setStatusFilter('all');
     setDateFilter('');
-    setEmailFilter('');
   };
 
   const handleSignIn = async () => {
@@ -758,7 +750,7 @@ export default function EnquiriesPage() {
             <h2 className="text-xl font-bold text-gray-900">Search & Filter Enquiries</h2>
           </div>
           <div className="p-6 rounded-b-3xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Search Box */}
               <div className="lg:col-span-2">
                 <label htmlFor="search" className="block text-sm font-semibold text-gray-700 mb-1">
@@ -797,24 +789,6 @@ export default function EnquiriesPage() {
                   <option value="completed">Completed</option>
                   <option value="cancelled">Rejected</option>
                 </select>
-              </div>
-
-              {/* Email Filter */}
-              <div>
-                <label htmlFor="emailFilter" className="block text-sm font-semibold text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="text"
-                  id="emailFilter"
-                  value={emailFilter}
-                  onChange={(e) => setEmailFilter(e.target.value)}
-                  placeholder="Filter by email..."
-                  className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md"
-                  style={{ 
-                    '--tw-ring-color': '#1C4B46'
-                  } as React.CSSProperties}
-                />
               </div>
 
               {/* Date Filter */}
@@ -942,12 +916,12 @@ export default function EnquiriesPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div className="text-sm text-gray-600">
                 Showing {filteredEnquiries.length} of {enquiries.length} enquiries
-                {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+                {(searchQuery || statusFilter !== 'all' || dateFilter) && (
                   <span className="ml-2 text-blue-600">• Filters applied</span>
                 )}
               </div>
               
-              {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
+              {(searchQuery || statusFilter !== 'all' || dateFilter) && (
                 <button
                   onClick={clearAllFilters}
                   className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200 flex items-center"
@@ -987,11 +961,6 @@ export default function EnquiriesPage() {
                     Status: {statusFilter.replace('_', ' ')}
                   </span>
                 )}
-                {emailFilter && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    Email: &quot;{emailFilter}&quot;
-                  </span>
-                )}
                 {dateFilter && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                     Date: {new Date(dateFilter).toLocaleDateString()}
@@ -1017,7 +986,7 @@ export default function EnquiriesPage() {
                     <th className="w-28 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Status</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Created At</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Updated At</th>
-                    <th className="w-44 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="w-56 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1189,7 +1158,7 @@ function EnquiryRow({ enquiry, onEdit, onSave, onCancel, onDelete, formatTimesta
         </td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(enquiry.createdAt)}</td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(enquiry.updatedAt)}</td>
-        <td className="w-44 px-6 py-4">
+        <td className="w-56 px-6 py-4">
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
@@ -1217,8 +1186,14 @@ function EnquiryRow({ enquiry, onEdit, onSave, onCancel, onDelete, formatTimesta
       <td className="w-28 px-6 py-4 border-r border-gray-300">{getStatusBadge(enquiry.status || 'pending')}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(enquiry.createdAt)}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(enquiry.updatedAt)}</td>
-      <td className="w-44 px-6 py-4">
+      <td className="w-56 px-6 py-4">
         <div className="flex space-x-2">
+          <Link
+            href={`/admin/enquiries/details?id=${enquiry.id}`}
+            className="text-blue-600 hover:text-blue-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            View Details
+          </Link>
           <button
             onClick={() => enquiry.id && onEdit(enquiry.id)}
             className="text-sm font-bold px-2 py-1 rounded-lg transition-colors"

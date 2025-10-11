@@ -1,0 +1,888 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { initFirebase, db, ENQUIRIES_COLLECTION } from '../../../../lib/firebase';
+import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../../lib/auth';
+import {
+  collection as col,
+  onSnapshot,
+  query,
+  orderBy,
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  DocumentData,
+  DocumentSnapshot,
+  where
+} from 'firebase/firestore';
+import type { Enquiry, TimestampField } from '../../../../lib/types';
+import type { User } from 'firebase/auth';
+
+// Initialize from env (will be set in environment when running)
+if (!db && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+  initFirebase({
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  });
+}
+
+interface TimelineEvent {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: Date | null;
+  status: 'completed' | 'current' | 'pending';
+}
+
+export default function EnquiryDetailsPage() {
+  const [enquiry, setEnquiry] = useState<Enquiry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [enquiryDetails, setEnquiryDetails] = useState('');
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [pendingEnquiries, setPendingEnquiries] = useState<Enquiry[]>([]);
+  const [isSettingReminder, setIsSettingReminder] = useState(false);
+  
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const enquiryId = searchParams.get('id');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChange((user) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Check for expired reminders periodically
+  useEffect(() => {
+    if (!db || !user) return;
+
+    const checkExpiredReminders = async () => {
+      try {
+        if (!db) return;
+        
+        const enquiriesQuery = query(
+          col(db, ENQUIRIES_COLLECTION),
+          where('reminderScheduledAt', '!=', null)
+        );
+        
+        const snapshot = await new Promise<any>((resolve) => {
+          const unsubscribe = onSnapshot(enquiriesQuery, (snapshot) => {
+            unsubscribe();
+            resolve(snapshot);
+          });
+        });
+
+        const now = new Date().getTime();
+        
+        for (const docSnap of snapshot.docs) {
+          const enquiryData = { id: docSnap.id, ...docSnap.data() } as Enquiry;
+          
+          if (enquiryData.reminderScheduledAt && enquiryData.reminderDuration) {
+            const reminderTime = typeof enquiryData.reminderScheduledAt === 'object' && 'toDate' in enquiryData.reminderScheduledAt
+              ? enquiryData.reminderScheduledAt.toDate().getTime()
+              : enquiryData.reminderScheduledAt instanceof Date
+              ? enquiryData.reminderScheduledAt.getTime()
+              : 0;
+            
+            const expiryTime = reminderTime + (enquiryData.reminderDuration * 60 * 60 * 1000);
+            
+            if (now >= expiryTime) {
+              // Reminder has expired, reset to pending
+              const enquiryRef = doc(db, ENQUIRIES_COLLECTION, docSnap.id);
+              await updateDoc(enquiryRef, {
+                status: 'pending',
+                reminderScheduledAt: null,
+                reminderDuration: null,
+                originalStatus: null,
+                updatedAt: serverTimestamp(),
+                userId: user.uid,
+                userEmail: user.email || ''
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking expired reminders:', error);
+      }
+    };
+
+    // Check immediately and then every minute
+    checkExpiredReminders();
+    const interval = setInterval(checkExpiredReminders, 60000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    if (!db || !user || !enquiryId) {
+      setLoading(false);
+      return;
+    }
+    
+    // Listen to specific enquiry data
+    const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+    const unsubEnquiry = onSnapshot(enquiryRef, (doc) => {
+      if (doc.exists()) {
+        const enquiryData = { id: doc.id, ...doc.data() } as Enquiry;
+        setEnquiry(enquiryData);
+        setEnquiryDetails(enquiryData.enquiryDetails || '');
+      } else {
+        setEnquiry(null);
+      }
+      setLoading(false);
+    });
+
+    // Listen for pending enquiries for notifications
+    const pendingQuery = query(
+      col(db, ENQUIRIES_COLLECTION), 
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const unsubPending = onSnapshot(pendingQuery, (snapshot) => {
+      const items: Enquiry[] = [];
+      snapshot.forEach((docSnap: DocumentSnapshot<DocumentData>) => 
+        items.push({ id: docSnap.id, ...docSnap.data() } as Enquiry)
+      );
+      setPendingEnquiries(items);
+    });
+    
+    return () => {
+      unsubEnquiry();
+      unsubPending();
+    };
+  }, [user, enquiryId]);
+
+  const generateTimeline = (enquiry: Enquiry): TimelineEvent[] => {
+    if (!enquiry) return [];
+
+    const timeline: TimelineEvent[] = [];
+    const now = new Date();
+
+    // 1. Visitor logged in
+    timeline.push({
+      id: 'login',
+      title: 'Visitor logged in',
+      description: `${enquiry.enquirerName || 'Visitor'} logged into the system`,
+      timestamp: enquiry.createdAt ? 
+        (typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt ? 
+          enquiry.createdAt.toDate() : 
+          enquiry.createdAt instanceof Date ? enquiry.createdAt : null
+        ) : null,
+      status: 'completed'
+    });
+
+    // 2. Enquiry submitted to reception
+    timeline.push({
+      id: 'submitted',
+      title: 'Enquiry submitted to reception',
+      description: `Enquiry for patient: ${enquiry.patientName || 'N/A'}`,
+      timestamp: enquiry.createdAt ? 
+        (typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt ? 
+          enquiry.createdAt.toDate() : 
+          enquiry.createdAt instanceof Date ? enquiry.createdAt : null
+        ) : null,
+      status: 'completed'
+    });
+
+    // 3. Progress status events
+    if (enquiry.status === 'pending') {
+      timeline.push({
+        id: 'pending',
+        title: 'Enquiry Status',
+        description: 'Pending - Waiting for staff review',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'current'
+      });
+    } else if (enquiry.status === 'in_progress') {
+      timeline.push({
+        id: 'in_progress',
+        title: 'Enquiry Status',
+        description: 'In Progress - Being processed by staff',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'current'
+      });
+    } else if (enquiry.status === 'completed') {
+      timeline.push({
+        id: 'in_progress',
+        title: 'Enquiry Status',
+        description: 'In Progress - Processed by staff',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'completed'
+      });
+      
+      timeline.push({
+        id: 'completed',
+        title: 'Enquiry completed',
+        description: 'Enquiry successfully resolved',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'current'
+      });
+
+      // 4. Enquiry checkout by staff (only if completed)
+      timeline.push({
+        id: 'checkout',
+        title: 'Enquiry checked out by staff',
+        description: 'Process completed and closed',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'completed'
+      });
+    } else if (enquiry.status === 'cancelled') {
+      timeline.push({
+        id: 'cancelled',
+        title: 'Enquiry Status',
+        description: 'Cancelled/Rejected - Enquiry was not processed',
+        timestamp: enquiry.updatedAt ? 
+          (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
+            enquiry.updatedAt.toDate() : 
+            enquiry.updatedAt instanceof Date ? enquiry.updatedAt : null
+          ) : null,
+        status: 'current'
+      });
+    }
+
+    return timeline;
+  };
+
+  const formatTimestamp = (timestamp: Date | null) => {
+    if (!timestamp) return 'N/A';
+    return timestamp.toLocaleString();
+  };
+
+  const handleSaveDetails = async () => {
+    if (!db || !enquiryId || !user) return;
+
+    setIsSavingDetails(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        enquiryDetails: enquiryDetails,
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+      setIsEditingDetails(false);
+    } catch (error) {
+      console.error('Error saving enquiry details:', error);
+      alert('Failed to save enquiry details. Please try again.');
+    }
+    setIsSavingDetails(false);
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Sign in failed:', error);
+      alert('Sign in failed. Please try again.');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      setEnquiry(null);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    }
+  };
+
+  const handleSetReminder = async (hours: number) => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsSettingReminder(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        reminderScheduledAt: serverTimestamp(),
+        reminderDuration: hours,
+        originalStatus: enquiry.status,
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      alert(`Reminder set for ${hours} hours. The enquiry will automatically return to pending status.`);
+    } catch (error) {
+      console.error('Error setting reminder:', error);
+      alert('Failed to set reminder. Please try again.');
+    }
+    setIsSettingReminder(false);
+  };
+
+  const handleCancelReminder = async () => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsSettingReminder(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        reminderScheduledAt: null,
+        reminderDuration: null,
+        originalStatus: null,
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      alert('Reminder cancelled successfully.');
+    } catch (error) {
+      console.error('Error cancelling reminder:', error);
+      alert('Failed to cancel reminder. Please try again.');
+    }
+    setIsSettingReminder(false);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>;
+      case 'in_progress':
+        return <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800">In Progress</span>;
+      case 'completed':
+        return <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">Completed</span>;
+      case 'cancelled':
+        return <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">Rejected</span>;
+      default:
+        return <span className="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
+    }
+  };
+
+  // Show loading spinner while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center max-w-md w-full">
+          {/* Logo */}
+          <div className="mb-8 bg-white p-6 rounded-2xl shadow-lg">
+            <Image 
+              src="/logo-1.png" 
+              alt="Kalpavruksha Logo" 
+              width={128}
+              height={128}
+              className="h-32 w-auto"
+            />
+          </div>
+          
+          <div className="w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+              <p className="text-gray-600 mb-8 text-sm leading-relaxed">Sign in to access the Kalpavruksha Admin Dashboard</p>
+              
+              <button
+                onClick={handleSignIn}
+                className="w-full flex items-center justify-center px-6 py-4 border border-gray-200 rounded-xl shadow-sm bg-white text-base font-medium text-gray-700 hover:bg-gray-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+              >
+                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign in with Google
+              </button>
+              
+              <div className="mt-8 text-sm text-gray-500 space-y-1">
+                <p>Only authorized users can access this dashboard.</p>
+                <p>Contact your administrator if you need access.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!enquiryId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">No enquiry ID provided</p>
+          <Link href="/admin/enquiries" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+            Back to Enquiries
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading enquiry details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!enquiry) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Enquiry not found</p>
+          <Link href="/admin/enquiries" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+            Back to Enquiries
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const timeline = generateTimeline(enquiry);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <Image 
+                src="/logo-1.png" 
+                alt="Kalpavruksha Logo" 
+                width={64}
+                height={64}
+                className="h-16 w-auto mr-6"
+              />
+              <div className="mt-2">
+                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-lg text-gray-700">
+                <span className="font-normal">Welcome, </span>
+                <span className="font-semibold">{user?.displayName || user?.email}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation Section */}
+      <div className="bg-white/60 backdrop-blur-sm border-b border-gray-200/50">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-6">
+              <Link
+                href="/admin"
+                className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
+                    <img 
+                      src="/visits.png" 
+                      alt="Visits" 
+                      className="w-7 h-7 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Visits</h3>
+                    <p className="text-sm text-gray-600">Check-in patients and manage visits</p>
+                  </div>
+                </div>
+              </Link>
+              <Link
+                href="/admin/enquiries"
+                className="flex items-center border-2 rounded-2xl px-6 py-4 shadow-xl scale-105 transition-all duration-300 group backdrop-blur-sm"
+                style={{ 
+                  backgroundColor: '#1C4B46',
+                  borderColor: '#1C4B46'
+                }}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg bg-white/20">
+                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Enquiries</h3>
+                    <p className="text-sm text-white/80">Submit and track enquiries</p>
+                  </div>
+                </div>
+              </Link>
+              <Link
+                href="/admin/analytics"
+                className="flex items-center border-2 border-gray-300/50 rounded-2xl px-6 py-4 hover:border-gray-400 hover:shadow-lg hover:scale-105 transition-all duration-300 group bg-white/80 backdrop-blur-sm"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ backgroundColor: '#1C4B46' }}>
+                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">View Analytics</h3>
+                    <p className="text-sm text-gray-600">View data insights and reports</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+            
+            {/* Notifications */}
+            <div className="relative">
+              <Link
+                href="/admin/notifications"
+                className="relative p-3 text-black hover:bg-gray-100 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300 flex items-center justify-center"
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+                </svg>
+                {pendingEnquiries.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                    {pendingEnquiries.length}
+                  </span>
+                )}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Button */}
+        <div className="mb-6">
+          <Link
+            href="/admin/enquiries"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors duration-200"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Enquiries
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column - Enquiry Info */}
+          <div className="space-y-6">
+            {/* Enquiry Information */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
+                <h2 className="text-xl font-bold text-gray-900">Enquiry Information</h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-500">Status</span>
+                    {getStatusBadge(enquiry.status || 'pending')}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Visitor Name</span>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{enquiry.enquirerName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Mobile</span>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{enquiry.enquirerMobile || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Patient Name</span>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{enquiry.patientName || 'N/A'}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Created At</span>
+                      <p className="mt-1 text-sm text-gray-900">{formatTimestamp(
+                        enquiry.createdAt && typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt
+                          ? enquiry.createdAt.toDate()
+                          : enquiry.createdAt instanceof Date
+                          ? enquiry.createdAt
+                          : null
+                      )}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Updated At</span>
+                      <p className="mt-1 text-sm text-gray-900">{formatTimestamp(
+                        enquiry.updatedAt && typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt
+                          ? enquiry.updatedAt.toDate()
+                          : enquiry.updatedAt instanceof Date
+                          ? enquiry.updatedAt
+                          : null
+                      )}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Enquiry Details */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">Enquiry Details</h2>
+                  {!isEditingDetails && (
+                    <button
+                      onClick={() => setIsEditingDetails(true)}
+                      className="text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                      style={{ color: '#1C4B46' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#0F2B26';
+                        e.currentTarget.style.backgroundColor = '#E6F3F1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#1C4B46';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="p-6">
+                {isEditingDetails ? (
+                  <div className="space-y-4">
+                    <textarea
+                      value={enquiryDetails}
+                      onChange={(e) => setEnquiryDetails(e.target.value)}
+                      placeholder="Enter enquiry details..."
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md resize-none"
+                      style={{ 
+                        '--tw-ring-color': '#1C4B46'
+                      } as React.CSSProperties}
+                    />
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleSaveDetails}
+                        disabled={isSavingDetails}
+                        className="text-white font-bold px-6 py-2 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                        style={{ backgroundColor: isSavingDetails ? '#8DA7A3' : '#1C4B46' }}
+                        onMouseEnter={(e) => !isSavingDetails && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSavingDetails && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        {isSavingDetails ? 'Saving...' : 'Save Details'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingDetails(false);
+                          setEnquiryDetails(enquiry.enquiryDetails || '');
+                        }}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-6 py-2 rounded-xl transition-colors duration-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="min-h-[120px]">
+                    {enquiryDetails ? (
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{enquiryDetails}</p>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click edit to add details.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Timeline */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
+            <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50/30 border-b border-gray-200/50">
+              <h2 className="text-xl font-bold text-gray-900">Timeline</h2>
+            </div>
+            <div className="p-6">
+              <div className="flow-root">
+                <ul className="-mb-8">
+                  {timeline.map((event, eventIdx) => (
+                    <li key={event.id}>
+                      <div className="relative pb-8">
+                        {eventIdx !== timeline.length - 1 ? (
+                          <span
+                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        <div className="relative flex space-x-3">
+                          <div>
+                            <span
+                              className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white ${
+                                event.status === 'completed'
+                                  ? 'bg-green-500'
+                                  : event.status === 'current'
+                                  ? 'bg-blue-500'
+                                  : 'bg-gray-300'
+                              }`}
+                            >
+                              {event.status === 'completed' ? (
+                                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              ) : event.status === 'current' ? (
+                                <div className="w-3 h-3 bg-white rounded-full" />
+                              ) : (
+                                <div className="w-3 h-3 bg-gray-500 rounded-full" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 pt-1.5">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                              <p className="mt-0.5 text-sm text-gray-500">{event.description}</p>
+                              {event.timestamp && (
+                                <p className="mt-0.5 text-xs text-gray-400">{formatTimestamp(event.timestamp)}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* Reminder Buttons */}
+              {enquiry.status && ['in_progress', 'completed', 'cancelled'].includes(enquiry.status) && (
+                <div className="mt-6 pt-6 border-t border-gray-200/50">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Set Reminder</h3>
+                  
+                  {enquiry.reminderScheduledAt ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <svg className="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            <div>
+                              <span className="text-sm font-medium text-blue-800">
+                                Reminder active for {enquiry.reminderDuration} hours
+                              </span>
+                              <p className="text-xs text-blue-600 mt-1">
+                                Will return to pending status automatically
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleCancelReminder}
+                            disabled={isSettingReminder}
+                            className="text-red-600 hover:text-red-900 text-sm font-medium px-3 py-1 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handleSetReminder(24)}
+                        disabled={isSettingReminder}
+                        className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                        style={{ 
+                          backgroundColor: isSettingReminder ? '#8DA7A3' : '#1C4B46',
+                          color: 'white'
+                        }}
+                        onMouseEnter={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Remind me in 1 day
+                      </button>
+                      
+                      <button
+                        onClick={() => handleSetReminder(72)}
+                        disabled={isSettingReminder}
+                        className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                        style={{ 
+                          backgroundColor: isSettingReminder ? '#8DA7A3' : '#1C4B46',
+                          color: 'white'
+                        }}
+                        onMouseEnter={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Remind me in 3 days
+                      </button>
+                      
+                      <button
+                        onClick={() => handleSetReminder(120)}
+                        disabled={isSettingReminder}
+                        className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
+                        style={{ 
+                          backgroundColor: isSettingReminder ? '#8DA7A3' : '#1C4B46',
+                          color: 'white'
+                        }}
+                        onMouseEnter={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSettingReminder && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Remind me in 5 days
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
