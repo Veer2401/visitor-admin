@@ -49,6 +49,7 @@ const initialFormData: VisitFormData = {
 export default function AdminPage() {
   const [visits, setVisits] = useState<EditingVisit[]>([]);
   const [filteredVisits, setFilteredVisits] = useState<EditingVisit[]>([]);
+  const [paginatedVisits, setPaginatedVisits] = useState<EditingVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<VisitFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,6 +63,10 @@ export default function AdminPage() {
   const [emailFilter, setEmailFilter] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
 
   // Date picker functions
     // Close date picker when clicking outside
@@ -264,7 +269,26 @@ export default function AdminPage() {
     }
 
     setFilteredVisits(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
   }, [visits, searchQuery, statusFilter, dateFilter, emailFilter]);
+
+  // Pagination logic
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setPaginatedVisits(filteredVisits.slice(startIndex, endIndex));
+  }, [filteredVisits, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredVisits.length / itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Scroll to top of table when page changes
+    const tableElement = document.querySelector('.visits-table');
+    if (tableElement) {
+      tableElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const formatTimestamp = (timestamp: TimestampField) => {
     if (!timestamp) return '-';
@@ -449,6 +473,7 @@ export default function AdminPage() {
     setStatusFilter('all');
     setDateFilter('');
     setEmailFilter('');
+    setCurrentPage(1);
   };
 
   const handleSignIn = async () => {
@@ -484,12 +509,12 @@ export default function AdminPage() {
   // Show login screen if not authenticated
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center max-w-md w-full">
           {/* Logo */}
-          <div className="mb-8 bg-gray-50 p-4 rounded-lg">
+          <div className="mb-8 bg-white p-6 rounded-2xl shadow-lg">
             <Image 
-              src="/logo.png" 
+              src="/logo-1.png" 
               alt="Kalpavruksha Logo" 
               width={128}
               height={128}
@@ -497,19 +522,14 @@ export default function AdminPage() {
             />
           </div>
           
-          <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+          <div className="w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
             <div className="text-center">
-              <div className="flex items-center justify-center mb-2">
-                {/* <div className="w-12 h-12 mr-3 bg-gray-100 rounded p-1 flex items-center justify-center">
-                  
-                </div> */}
-                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              </div>
-              <p className="text-gray-600 mb-8">Sign in to access the Kalpavruksha Admin Dashboard</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+              <p className="text-gray-600 mb-8 text-sm leading-relaxed">Sign in to access the Kalpavruksha Admin Dashboard</p>
               
               <button
                 onClick={handleSignIn}
-                className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex items-center justify-center px-6 py-4 border border-gray-200 rounded-xl shadow-sm bg-white text-base font-medium text-gray-700 hover:bg-gray-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
               >
                 <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -520,7 +540,7 @@ export default function AdminPage() {
                 Sign in with Google
               </button>
               
-              <div className="mt-6 text-sm text-gray-500">
+              <div className="mt-8 text-sm text-gray-500 space-y-1">
                 <p>Only authorized users can access this dashboard.</p>
                 <p>Contact your administrator if you need access.</p>
               </div>
@@ -539,7 +559,7 @@ export default function AdminPage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <Image 
-                src="/logo.png" 
+                src="/logo-1.png" 
                 alt="Kalpavruksha Logo" 
                 width={64}
                 height={64}
@@ -557,30 +577,57 @@ export default function AdminPage() {
               </div>
               <button
                 onClick={handleSignOut}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200"
               >
                 Sign Out
               </button>
             </div>
           </div>
-          
-          {/* Navigation Buttons */}
-          <div className="mt-6 flex space-x-4">
+        </div>
+      </header>
+
+      {/* Navigation Section */}
+      <div className="bg-white border-b">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex space-x-4">
             <Link
               href="/admin"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+              className="flex items-center border-2 rounded-xl px-4 py-3 transition-colors duration-200 group"
+              style={{ borderColor: '#1C4B46' }}
             >
-              Visits
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1C4B46' }}>
+                  <img 
+                    src="/visits.png" 
+                    alt="Visits" 
+                    className="w-5 h-5"
+                  />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Visits</h3>
+                  <p className="text-xs text-gray-600">Check-in patients and manage visits</p>
+                </div>
+              </div>
             </Link>
             <Link
               href="/admin/enquiries"
-              className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+              className="flex items-center border-2 border-gray-300 rounded-xl px-4 py-3 hover:border-gray-400 transition-colors duration-200 group"
             >
-              Enquiries
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1C4B46' }}>
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Enquiries</h3>
+                  <p className="text-xs text-gray-600">Submit and track enquiries</p>
+                </div>
+              </div>
             </Link>
           </div>
         </div>
-      </header>
+      </div>
 
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Add New Entry Form */}
@@ -671,7 +718,10 @@ export default function AdminPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-md font-medium transition-colors duration-200"
+                className="text-white font-bold px-6 py-2 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                style={{ backgroundColor: isSubmitting ? '#8DA7A3' : '#1C4B46' }}
+                onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#164037')}
+                onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#1C4B46')}
               >
                 {isSubmitting ? 'Adding...' : 'Add Visit Entry'}
               </button>
@@ -681,12 +731,12 @@ export default function AdminPage() {
 
         {/* Search and Filter Section */}
         <div className="bg-white rounded-lg shadow-sm border mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-3 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Search & Filter Visits</h2>
             <p className="text-sm text-gray-600">Use the filters below to find specific visitor records</p>
           </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-3">
               {/* Search Box */}
               <div className="lg:col-span-2">
                 <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
@@ -698,7 +748,7 @@ export default function AdminPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by patient name, visitor name, or mobile..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
                 />
               </div>
 
@@ -711,7 +761,7 @@ export default function AdminPage() {
                   id="statusFilter"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as 'all' | 'checked_in' | 'checked_out')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
                 >
                   <option value="all">All Status</option>
                   <option value="checked_in">Checked In</option>
@@ -730,7 +780,7 @@ export default function AdminPage() {
                   value={emailFilter}
                   onChange={(e) => setEmailFilter(e.target.value)}
                   placeholder="Filter by email..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 text-sm text-gray-900"
                 />
               </div>
 
@@ -743,7 +793,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setShowDatePicker(!showDatePicker)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-white text-left flex items-center justify-between"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 bg-white text-left flex items-center justify-between"
                   >
                     <span className={dateFilter ? 'text-gray-900' : 'text-gray-400'}>
                       {dateFilter ? formatDisplayDate(dateFilter) : 'Select date...'}
@@ -841,9 +891,12 @@ export default function AdminPage() {
             </div>
 
             {/* Filter Actions */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div className="text-sm text-gray-600">
-                Showing {filteredVisits.length} of {visits.length} visits
+                Showing {paginatedVisits.length} of {filteredVisits.length} visits
+                {filteredVisits.length !== visits.length && (
+                  <span className="text-gray-500"> (filtered from {visits.length} total)</span>
+                )}
                 {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
                   <span className="ml-2 text-blue-600">• Filters applied</span>
                 )}
@@ -853,7 +906,7 @@ export default function AdminPage() {
               {(searchQuery || statusFilter !== 'all' || dateFilter || emailFilter) && (
                 <button
                   onClick={clearAllFilters}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200 flex items-center"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -866,14 +919,14 @@ export default function AdminPage() {
         </div>
 
         {/* Visits Table */}
-        <div className="bg-white rounded-lg shadow-sm border">
+        <div className="bg-white rounded-lg shadow-sm border visits-table">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
                   All Visits
                   <span className="ml-2 text-sm font-normal text-gray-500">
-                    ({filteredVisits.length} of {visits.length})
+                    (Page {currentPage} of {totalPages || 1})
                   </span>
                 </h2>
               </div>
@@ -927,11 +980,11 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredVisits.map((visit, index) => (
+                  {paginatedVisits.map((visit, index) => (
                     <VisitRow
                       key={visit.id}
                       visit={visit}
-                      index={index + 1}
+                      index={((currentPage - 1) * itemsPerPage) + index + 1}
                       onEdit={handleEdit}
                       onSave={handleSaveEdit}
                       onCancel={handleCancelEdit}
@@ -940,7 +993,7 @@ export default function AdminPage() {
                       formatTimestamp={formatTimestamp}
                     />
                   ))}
-                  {filteredVisits.length === 0 && !loading && (
+                  {paginatedVisits.length === 0 && !loading && (
                     <tr className="border-b border-gray-300">
                       <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center">
@@ -963,7 +1016,10 @@ export default function AdminPage() {
                               <p className="text-sm text-gray-500 mb-3">Try adjusting your search criteria or clear the filters.</p>
                               <button
                                 onClick={clearAllFilters}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                                className="text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors duration-200"
+                                style={{ backgroundColor: '#1C4B46' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#164037'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1C4B46'}
                               >
                                 Clear All Filters
                               </button>
@@ -978,6 +1034,103 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white rounded-lg shadow-sm border mt-4">
+            <div className="px-6 py-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredVisits.length)} of {filteredVisits.length} visits
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  {/* Previous Button */}
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 text-sm font-bold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {/* Page Numbers */}
+                  <div className="flex space-x-1">
+                    {/* First page */}
+                    {currentPage > 3 && (
+                      <>
+                        <button
+                          onClick={() => handlePageChange(1)}
+                          className="px-3 py-2 text-sm font-bold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          1
+                        </button>
+                        {currentPage > 4 && (
+                          <span className="px-3 py-2 text-sm text-gray-500">...</span>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* Current page and neighbors */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
+                      
+                      if (pageNumber < 1 || pageNumber > totalPages) return null;
+                      
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => handlePageChange(pageNumber)}
+                          className={`px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
+                            currentPage === pageNumber
+                              ? 'text-white'
+                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                          }`}
+                          style={currentPage === pageNumber ? { backgroundColor: '#1C4B46', borderColor: '#1C4B46' } : {}}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                    
+                    {/* Last page */}
+                    {currentPage < totalPages - 2 && (
+                      <>
+                        {currentPage < totalPages - 3 && (
+                          <span className="px-3 py-2 text-sm text-gray-500">...</span>
+                        )}
+                        <button
+                          onClick={() => handlePageChange(totalPages)}
+                          className="px-3 py-2 text-sm font-bold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Next Button */}
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 text-sm font-bold rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1103,13 +1256,13 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
-              className="text-green-600 hover:text-green-900 text-sm font-medium px-2 py-1 rounded hover:bg-green-50 transition-colors"
+              className="text-green-600 hover:text-green-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-green-50 transition-colors"
             >
               Save
             </button>
             <button
               onClick={handleCancel}
-              className="text-gray-600 hover:text-gray-900 text-sm font-medium px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+              className="text-gray-600 hover:text-gray-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
@@ -1134,19 +1287,28 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
         <div className="flex space-x-2">
           <button
             onClick={() => visit.id && onEdit(visit.id)}
-            className="text-blue-600 hover:text-blue-900 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+            className="text-sm font-bold px-2 py-1 rounded-lg transition-colors"
+            style={{ color: '#1C4B46' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#0F2B26';
+              e.currentTarget.style.backgroundColor = '#E6F3F1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#1C4B46';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
             Edit
           </button>
           <button
             onClick={() => visit.id && visit.status && onStatusChange(visit.id, visit.status === 'checked_in' ? 'checked_out' : 'checked_in')}
-            className="text-purple-600 hover:text-purple-900 text-sm font-medium px-2 py-1 rounded hover:bg-purple-50 transition-colors"
+            className="text-purple-600 hover:text-purple-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-purple-50 transition-colors"
           >
             {visit.status === 'checked_in' ? 'Check Out' : 'Check In'}
           </button>
           <button
             onClick={() => onDelete(visit.id)}
-            className="text-red-600 hover:text-red-900 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            className="text-red-600 hover:text-red-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
           >
             Delete
           </button>
