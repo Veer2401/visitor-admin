@@ -850,7 +850,6 @@ export default function AdminPage() {
                     ({filteredVisits.length} of {visits.length})
                   </span>
                 </h2>
-                <p className="text-sm text-gray-600">Real-time visitor data from Firestore</p>
               </div>
               
               {/* Active Filters Display */}
