@@ -565,7 +565,7 @@ export default function AdminPage() {
       // Get current visit data to check admin status
       const currentVisit = visits.find(v => v.id === visitId);
       
-      const updates: Partial<Visit> = { 
+      const updates: Partial<Visit> = {  
         updatedAt: serverTimestamp(),
         userId: user.uid, // Ensure user context for updates
         userEmail: user.email || ''
