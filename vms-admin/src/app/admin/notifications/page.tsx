@@ -133,8 +133,10 @@ export default function NotificationsPage() {
             <Image 
               src="/logo-1.png" 
               alt="Kalpavruksha Logo" 
-              width={128}
-              height={128}
+              width={256}
+              height={256}
+              quality={100}
+              priority
               className="h-32 w-auto"
             />
           </div>
@@ -178,8 +180,10 @@ export default function NotificationsPage() {
               <Image 
                 src="/logo-1.png" 
                 alt="Kalpavruksha Logo" 
-                width={64}
-                height={64}
+                width={128}
+                height={128}
+                quality={100}
+                priority
                 className="h-16 w-auto mr-6"
               />
               <div className="mt-2">
