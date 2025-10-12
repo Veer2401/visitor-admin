@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { initFirebase, db, VISITS_COLLECTION, STAFF_COLLECTION } from '../../../../lib/firebase';
+import { initFirebase, db, VISITS_COLLECTION, STAFF_COLLECTION, DOCTORS_COLLECTION } from '../../../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../../lib/auth';
 import {
   collection as col,
@@ -19,7 +19,7 @@ import {
   DocumentSnapshot,
   where
 } from 'firebase/firestore';
-import type { Visit, TimestampField, Staff } from '../../../../lib/types';
+import type { Visit, TimestampField, Staff, Doctor } from '../../../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)
@@ -51,8 +51,11 @@ export default function VisitDetailsPage() {
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const [isAssigningStaff, setIsAssigningStaff] = useState(false);
+  const [isAssigningDoctor, setIsAssigningDoctor] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showPredefinedOptions, setShowPredefinedOptions] = useState(false);
   
@@ -81,10 +84,11 @@ export default function VisitDetailsPage() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch staff data
+  // Fetch staff and doctors data
   useEffect(() => {
     if (!db || !user) return;
     
+    // Fetch staff
     const staffQuery = query(col(db, STAFF_COLLECTION));
     const unsubStaff = onSnapshot(staffQuery, (snapshot) => {
       const items: Staff[] = [];
@@ -95,8 +99,23 @@ export default function VisitDetailsPage() {
     }, (error) => {
       console.error('Error fetching staff:', error);
     });
+
+    // Fetch doctors
+    const doctorsQuery = query(col(db, DOCTORS_COLLECTION));
+    const unsubDoctors = onSnapshot(doctorsQuery, (snapshot) => {
+      const items: Doctor[] = [];
+      snapshot.forEach((docSnap) => 
+        items.push({ id: docSnap.id, ...docSnap.data() } as Doctor)
+      );
+      setDoctors(items);
+    }, (error) => {
+      console.error('Error fetching doctors:', error);
+    });
     
-    return () => unsubStaff();
+    return () => {
+      unsubStaff();
+      unsubDoctors();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -156,7 +175,22 @@ export default function VisitDetailsPage() {
       });
     }
 
-    // 3. Purpose of visit (if details provided)
+    // 3. Doctor assigned (if assigned)
+    if (visit.assignedDoctor) {
+      timeline.push({
+        id: 'doctor_assigned',
+        title: 'Doctor Assigned',
+        description: `Assigned to Dr. ${visit.assignedDoctor}`,
+        timestamp: visit.assignedDoctorAt ? 
+          (typeof visit.assignedDoctorAt === 'object' && 'toDate' in visit.assignedDoctorAt ? 
+            visit.assignedDoctorAt.toDate() : 
+            visit.assignedDoctorAt instanceof Date ? visit.assignedDoctorAt : null
+          ) : null,
+        status: 'completed'
+      });
+    }
+
+    // 4. Purpose of visit (if details provided)
     if (visit.visitDetails) {
       timeline.push({
         id: 'purpose',
@@ -171,7 +205,7 @@ export default function VisitDetailsPage() {
       });
     }
 
-    // 4. Current status or checkout/checkin events
+    // 5. Current status or checkout/checkin events
     if (visit.status === 'checked_in') {
       // If visit is currently checked in
       if (visit.checkOutTime) {
@@ -249,11 +283,34 @@ export default function VisitDetailsPage() {
         userEmail: user.email || ''
       });
       setIsEditingDetails(false);
+      setShowDoctorDropdown(false); // Close doctor dropdown after saving
     } catch (error) {
       console.error('Error saving visit details:', error);
       alert('Failed to save visit details. Please try again.');
     }
     setIsSavingDetails(false);
+  };
+
+  const handleAssignDoctor = async (doctorName: string) => {
+    if (!db || !visitId || !user || !visit) return;
+
+    setIsAssigningDoctor(true);
+    try {
+      const visitRef = doc(db, VISITS_COLLECTION, visitId);
+      await updateDoc(visitRef, {
+        assignedDoctor: doctorName,
+        assignedDoctorAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      setShowDoctorDropdown(false);
+    } catch (error) {
+      console.error('Error assigning doctor:', error);
+      alert('Failed to assign doctor. Please try again.');
+    }
+    setIsAssigningDoctor(false);
   };
 
   const handleAssignStaff = async (staffName: string) => {
@@ -323,6 +380,11 @@ export default function VisitDetailsPage() {
       setVisitDetails('');
       setShowPredefinedOptions(false);
       setIsEditingDetails(true);
+    } else if (option === "To Meet Dr") {
+      setVisitDetails(option);
+      setShowPredefinedOptions(false);
+      // Don't close the quick options, instead show doctor selection
+      setShowDoctorDropdown(true);
     } else {
       setVisitDetails(option);
       setShowPredefinedOptions(false);
@@ -559,6 +621,54 @@ export default function VisitDetailsPage() {
                           )}
                         </div>
                       )}
+                      {/* Always show Assign Doctor button for checked-in visits */}
+                      {visit.status === 'checked_in' && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                            disabled={isAssigningDoctor}
+                            className={`font-bold px-3 py-1 rounded-lg text-xs transition-colors duration-200 disabled:opacity-50 flex items-center space-x-1 ${
+                              visit.assignedDoctor 
+                                ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{visit.assignedDoctor ? 'Change Doctor' : 'Assign Doctor'}</span>
+                          </button>
+                          
+                          {showDoctorDropdown && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowDoctorDropdown(false)}
+                              />
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <div className="py-1">
+                                  {doctors.length === 0 ? (
+                                    <div className="px-4 py-2 text-sm text-gray-500">
+                                      No doctors available
+                                    </div>
+                                  ) : (
+                                    doctors.map((doctor) => (
+                                      <button
+                                        key={doctor.id}
+                                        onClick={() => handleAssignDoctor(doctor.doctorName || 'Unknown Doctor')}
+                                        disabled={isAssigningDoctor}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 disabled:opacity-50"
+                                      >
+                                        {doctor.doctorName || 'Unknown Doctor'}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -579,6 +689,12 @@ export default function VisitDetailsPage() {
                     <div>
                       <span className="text-sm font-medium text-gray-500">Attended By</span>
                       <p className="mt-1 text-sm font-semibold text-green-700">{visit.attendedBy}</p>
+                    </div>
+                  )}
+                  {visit.assignedDoctor && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Assigned Doctor</span>
+                      <p className="mt-1 text-sm font-semibold text-blue-700">Dr. {visit.assignedDoctor}</p>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-4">
@@ -613,10 +729,58 @@ export default function VisitDetailsPage() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Visit Details</h2>
                   <div className="flex space-x-2">
+                    {/* Always show Assign Doctor button for checked-in visits */}
+                    {visit.status === 'checked_in' && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                          disabled={isAssigningDoctor}
+                          className={`text-sm font-bold px-4 py-2 rounded-xl transition-colors disabled:opacity-50 flex items-center space-x-2 ${
+                            visit.assignedDoctor 
+                              ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span>{visit.assignedDoctor ? 'Change Doctor' : 'Assign Doctor'}</span>
+                        </button>
+                        
+                        {showDoctorDropdown && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setShowDoctorDropdown(false)}
+                            />
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                              <div className="py-1">
+                                {doctors.length === 0 ? (
+                                  <div className="px-4 py-2 text-sm text-gray-500">
+                                    No doctors available
+                                  </div>
+                                ) : (
+                                  doctors.map((doctor) => (
+                                    <button
+                                      key={doctor.id}
+                                      onClick={() => handleAssignDoctor(doctor.doctorName || 'Unknown Doctor')}
+                                      disabled={isAssigningDoctor}
+                                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 disabled:opacity-50"
+                                    >
+                                      {doctor.doctorName || 'Unknown Doctor'}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {!isEditingDetails && !visitDetails && (
                       <button
                         onClick={() => setShowPredefinedOptions(!showPredefinedOptions)}
-                        className="text-sm font-bold px-4 py-2 rounded-xl transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+                        className="text-sm font-bold px-4 py-2 rounded-xl transition-colors bg-purple-600 hover:bg-purple-700 text-white"
                       >
                         <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -672,6 +836,37 @@ export default function VisitDetailsPage() {
                   </div>
                 )}
 
+                {/* Doctor Selection for "To Meet Dr" */}
+                {visitDetails === "To Meet Dr" && showDoctorDropdown && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Doctor to Meet:</h3>
+                    <div className="space-y-2">
+                      {doctors.length === 0 ? (
+                        <div className="p-3 rounded-xl border border-gray-200 text-sm text-gray-500">
+                          No doctors available. Please add doctors first.
+                        </div>
+                      ) : (
+                        doctors.map((doctor) => (
+                          <button
+                            key={doctor.id}
+                            onClick={() => handleAssignDoctor(doctor.doctorName || 'Unknown Doctor')}
+                            disabled={isAssigningDoctor}
+                            className="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 text-sm font-medium text-gray-700 hover:text-blue-700 disabled:opacity-50"
+                          >
+                            {doctor.doctorName || 'Unknown Doctor'}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowDoctorDropdown(false)}
+                      className="mt-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
                 {isEditingDetails ? (
                   <div className="space-y-4">
                     <textarea
@@ -712,6 +907,25 @@ export default function VisitDetailsPage() {
                     {visitDetails ? (
                       <div>
                         <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{visitDetails}</p>
+                        {/* Show assigned doctor for "To Meet Dr" */}
+                        {visitDetails === "To Meet Dr" && visit.assignedDoctor && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                            <p className="text-sm font-semibold text-blue-900">
+                              Assigned to: Dr. {visit.assignedDoctor}
+                            </p>
+                            {visit.assignedDoctorAt && (
+                              <p className="text-xs text-blue-700 mt-1">
+                                Assigned at: {formatTimestamp(
+                                  visit.assignedDoctorAt && typeof visit.assignedDoctorAt === 'object' && 'toDate' in visit.assignedDoctorAt
+                                    ? visit.assignedDoctorAt.toDate()
+                                    : visit.assignedDoctorAt instanceof Date
+                                    ? visit.assignedDoctorAt
+                                    : null
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        )}
                         {/* Save button for predefined options */}
                         {predefinedOptions.includes(visitDetails) && visitDetails !== visit.visitDetails && (
                           <div className="mt-4">

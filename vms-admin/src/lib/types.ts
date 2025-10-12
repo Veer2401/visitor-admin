@@ -19,6 +19,8 @@ export interface Visit {
   visitDetails?: string; // Purpose of visit or details
   attendedBy?: string; // Name of staff member attending the visit
   attendedAt?: Timestamp | FieldValue | Date | null; // When staff was assigned
+  assignedDoctor?: string; // Name of doctor assigned for the visit
+  assignedDoctorAt?: Timestamp | FieldValue | Date | null; // When doctor was assigned
 }
 
 export interface Visitor {
