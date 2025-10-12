@@ -172,7 +172,7 @@ export default function VisitDetailsPage() {
     // 3. Doctor assigned (if assigned)
     if (visit.assignedDoctor) {
       timeline.push({
-        id: 'doctor_assigned',
+        id: 'doctor_assigned',  
         title: 'Doctor Assigned',
         description: `Assigned to ${visit.assignedDoctor}`,
         timestamp: visit.assignedDoctorAt ? 
