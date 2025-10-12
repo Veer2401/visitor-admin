@@ -413,7 +413,7 @@ export default function EnquiriesPage() {
     const isNone = emailValue.toLowerCase() === 'none';
     const isValidEmail = emailValue.includes('@') && emailValue.includes('.');
     
-    if (!emailValue || (!isNone && !isValidEmail)) {
+    if (emailValue && (!isNone && !isValidEmail)) {
       alert('Please enter a valid email address or type "none"');
       return;
     }
@@ -427,7 +427,7 @@ export default function EnquiriesPage() {
         patientName: formData.patientName,
         status: formData.status,
         createdBy: user.uid, // Store user UID for Firestore rules
-        createdByEmail: isNone ? 'None' : formData.createdBy, // Store email for display
+        createdByEmail: emailValue ? (isNone ? 'None' : formData.createdBy) : 'None', // Store email for display or 'None' if empty
         createdAt: now,
         updatedAt: now,
         _manualEntry: true,
@@ -779,7 +779,7 @@ export default function EnquiriesPage() {
                   required
                 />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 hidden">
                 <label htmlFor="createdBy" className="block text-sm font-semibold text-gray-700 mb-1">
                   Email
                 </label>
@@ -794,7 +794,6 @@ export default function EnquiriesPage() {
                   style={{ 
                     '--tw-ring-color': '#1C4B46'
                   } as React.CSSProperties}
-                  required
                 />
               </div>
               <div className="min-w-0">

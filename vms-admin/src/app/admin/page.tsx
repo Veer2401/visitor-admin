@@ -453,12 +453,12 @@ export default function AdminPage() {
       return;
     }
 
-    // Validate email - must be a valid email or "none"/"None"
+    // Validate email - optional field, but if provided must be valid email or "none"/"None"
     const emailValue = formData.createdBy.trim();
     const isNone = emailValue.toLowerCase() === 'none';
     const isValidEmail = emailValue.includes('@') && emailValue.includes('.');
     
-    if (!emailValue || (!isNone && !isValidEmail)) {
+    if (emailValue && (!isNone && !isValidEmail)) {
       console.log('Email validation failed:', { emailValue, isNone, isValidEmail });
       alert('Please enter a valid email address or type "none"');
       return;
@@ -474,7 +474,7 @@ export default function AdminPage() {
         visitorMobile: formData.visitorMobile,
         status: formData.status,
         createdBy: user.uid, // Store user UID for Firestore rules
-        createdByEmail: isNone ? 'None' : formData.createdBy, // Store email for display
+        createdByEmail: emailValue ? (isNone ? 'None' : formData.createdBy) : 'None', // Store email for display or 'None' if empty
         createdAt: now,
         date: now,
         checkInTime: now,
@@ -907,7 +907,7 @@ export default function AdminPage() {
                   required
                 />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 hidden">
                 <label htmlFor="createdBy" className="block text-sm font-semibold text-gray-700 mb-1">
                   Email
                 </label>
@@ -922,7 +922,6 @@ export default function AdminPage() {
                   style={{ 
                     '--tw-ring-color': '#1C4B46'
                   } as React.CSSProperties}
-                  required
                 />
               </div>
               <div className="min-w-0">
