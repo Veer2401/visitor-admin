@@ -561,23 +561,61 @@ export default function AdminPage() {
 
     try {
       const ref = doc(db, VISITS_COLLECTION, visitId);
+      
+      // Get current visit data to check admin status
+      const currentVisit = visits.find(v => v.id === visitId);
+      
       const updates: Partial<Visit> = { 
-        status: newStatus,
         updatedAt: serverTimestamp(),
         userId: user.uid, // Ensure user context for updates
         userEmail: user.email || ''
       };
       
       if (newStatus === 'checked_out') {
-        updates.checkOutTime = serverTimestamp();
+        updates.visitorCheckOutTime = serverTimestamp();
+        // Only update main status if admin hasn't checked out yet
+        // This prevents visitor checkout from affecting admin checkout status
+        if (!currentVisit?.adminCheckOutTime) {
+          updates.status = 'checked_out';
+        }
       } else {
-        updates.checkOutTime = null;
+        updates.visitorCheckOutTime = null;
+        // Only update main status if admin hasn't checked out yet
+        if (!currentVisit?.adminCheckOutTime) {
+          updates.status = 'checked_in';
+        }
       }
       
       await updateDoc(ref, updates);
     } catch (error) {
-      console.error('Error updating status:', error);
-      alert('Failed to update status. Please try again.');
+      console.error('Error updating visitor status:', error);
+      alert('Failed to update visitor status. Please try again.');
+    }
+  };
+
+  const handleAdminStatusChange = async (visitId: string, isAdminCheckOut: boolean) => {
+    if (!db || !visitId || !user) return;
+
+    try {
+      const ref = doc(db, VISITS_COLLECTION, visitId);
+      const updates: Partial<Visit> = { 
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      };
+      
+      if (isAdminCheckOut) {
+        updates.adminCheckOutTime = serverTimestamp();
+        updates.adminCheckInTime = null;
+      } else {
+        updates.adminCheckInTime = serverTimestamp();
+        updates.adminCheckOutTime = null;
+      }
+      
+      await updateDoc(ref, updates);
+    } catch (error) {
+      console.error('Error updating admin status:', error);
+      alert('Failed to update admin status. Please try again.');
     }
   };
 
@@ -1165,14 +1203,15 @@ export default function AdminPage() {
                   <tr>
                     <th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Patient Name</th>
                     <th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Name</th>
-                    <th className="w-20 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor #</th>
-                    <th className="w-36 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Mobile</th>
+                    <th className="hidden w-20 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor #</th>
+                    <th className="w-24 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Mobile</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Date</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Check-In Time</th>
-                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Check-Out Time</th>
+                    <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Visitor Check-Out</th>
+                    <th className="hidden w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Admin Check-Out</th>
                     <th className="w-28 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Status</th>
                     <th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200/50">Updated At</th>
-                    <th className="w-56 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="w-72 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1186,12 +1225,13 @@ export default function AdminPage() {
                       onCancel={handleCancelEdit}
                       onDelete={handleDelete}
                       onStatusChange={handleStatusChange}
+                      onAdminStatusChange={handleAdminStatusChange}
                       formatTimestamp={formatTimestamp}
                     />
                   ))}
                   {paginatedVisits.length === 0 && !loading && (
                     <tr className="border-b border-gray-300">
-                      <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center">
                           {visits.length === 0 ? (
                             // No visits at all
@@ -1348,10 +1388,11 @@ interface VisitRowProps {
   onCancel: (id: string) => void;
   onDelete: (id?: string) => void;
   onStatusChange: (id: string, status: 'checked_in' | 'checked_out') => void;
+  onAdminStatusChange: (id: string, isAdminCheckOut: boolean) => void;
   formatTimestamp: (timestamp: TimestampField) => string;
 }
 
-function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusChange, formatTimestamp }: VisitRowProps) {
+function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusChange, onAdminStatusChange, formatTimestamp }: VisitRowProps) {
   const [editData, setEditData] = useState<Partial<Visit>>({});
 
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1392,14 +1433,17 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'checked_in':
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Checked In</span>;
-      case 'checked_out':
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Checked Out</span>;
-      default:
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">{status}</span>;
+  const getStatusBadge = (visit: EditingVisit) => {
+    // Determine status based on both visitor and admin timelines
+    const visitorCheckedOut = visit.visitorCheckOutTime || visit.status === 'checked_out';
+    const adminCheckedOut = visit.adminCheckOutTime;
+    
+    if (adminCheckedOut) {
+      return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Admin Checked Out</span>;
+    } else if (visitorCheckedOut) {
+      return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Visitor Checked Out</span>;
+    } else {
+      return <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>;
     }
   };
 
@@ -1428,8 +1472,8 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded placeholder-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900"
           />
         </td>
-        <td className="w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
-        <td className="w-36 px-6 py-4 border-r border-gray-300">
+        <td className="hidden w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
+        <td className="w-24 px-6 py-4 border-r border-gray-300">
           <input
             type="tel"
             name="visitorMobile"
@@ -1442,7 +1486,8 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
         </td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
-        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
+        <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.visitorCheckOutTime)}</td>
+        <td className="hidden w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.adminCheckOutTime)}</td>
         <td className="w-28 px-6 py-4 border-r border-gray-300">
           <select
             name="status"
@@ -1456,7 +1501,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
           </select>
         </td>
         <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
-        <td className="w-56 px-6 py-4">
+        <td className="w-72 px-6 py-4">
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
@@ -1480,14 +1525,15 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
     <tr className="hover:bg-gray-50 border-b border-gray-300">
       <td className="w-32 px-6 py-4 text-sm font-medium text-gray-900 truncate border-r border-gray-300" title={visit.patientName || '-'}>{visit.patientName || '-'}</td>
       <td className="w-32 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorName || '-'}>{visit.visitorName || '-'}</td>
-      <td className="w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
-      <td className="w-36 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorMobile || '-'}>{visit.visitorMobile || '-'}</td>
+      <td className="hidden w-20 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{index}</td>
+      <td className="w-24 px-6 py-4 text-sm text-gray-900 truncate border-r border-gray-300" title={visit.visitorMobile || '-'}>{visit.visitorMobile || '-'}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.date)}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkInTime)}</td>
-      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.checkOutTime)}</td>
-      <td className="w-28 px-6 py-4 border-r border-gray-300">{getStatusBadge(visit.status || 'unknown')}</td>
+      <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.visitorCheckOutTime)}</td>
+      <td className="hidden w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.adminCheckOutTime)}</td>
+      <td className="w-28 px-6 py-4 border-r border-gray-300">{getStatusBadge(visit)}</td>
       <td className="w-40 px-6 py-4 text-sm text-gray-900 border-r border-gray-300">{formatTimestamp(visit.updatedAt)}</td>
-      <td className="w-56 px-6 py-4">
+      <td className="w-72 px-6 py-4">
         <div className="flex space-x-2">
           <button
             onClick={() => visit.id && onEdit(visit.id)}
@@ -1511,10 +1557,29 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
             Details
           </Link>
           <button
-            onClick={() => visit.id && visit.status && onStatusChange(visit.id, visit.status === 'checked_in' ? 'checked_out' : 'checked_in')}
-            className="text-purple-600 hover:text-purple-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-purple-50 transition-colors"
+            onClick={() => {
+              if (visit.id) {
+                const visitorCheckedOut = visit.visitorCheckOutTime || visit.status === 'checked_out';
+                onStatusChange(visit.id, visitorCheckedOut ? 'checked_in' : 'checked_out');
+              }
+            }}
+            className={`text-sm font-bold px-2 py-1 rounded-lg transition-colors ${
+              (visit.visitorCheckOutTime || visit.status === 'checked_out')
+                ? 'text-green-600 hover:text-green-900 hover:bg-green-50' 
+                : 'text-orange-600 hover:text-orange-900 hover:bg-orange-50'
+            }`}
           >
-            {visit.status === 'checked_in' ? 'Check Out' : 'Check In'}
+            Visitor {(visit.visitorCheckOutTime || visit.status === 'checked_out') ? 'Check In' : 'Check Out'}
+          </button>
+          <button
+            onClick={() => visit.id && onAdminStatusChange(visit.id, !visit.adminCheckOutTime)}
+            className={`text-sm font-bold px-2 py-1 rounded-lg transition-colors ${
+              visit.adminCheckOutTime 
+                ? 'text-green-600 hover:text-green-900 hover:bg-green-50' 
+                : 'text-red-600 hover:text-red-900 hover:bg-red-50'
+            }`}
+          >
+            Admin {visit.adminCheckOutTime ? 'Check In' : 'Check Out'}
           </button>
           <button
             onClick={() => onDelete(visit.id)}

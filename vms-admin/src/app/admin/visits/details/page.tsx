@@ -3,23 +3,18 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { initFirebase, db, VISITS_COLLECTION, STAFF_COLLECTION, DOCTORS_COLLECTION } from '../../../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../../lib/auth';
 import {
   collection as col,
   onSnapshot,
   query,
-  orderBy,
   doc,
-  getDoc,
   updateDoc,
-  serverTimestamp,
-  DocumentData,
-  DocumentSnapshot,
-  where
+  serverTimestamp
 } from 'firebase/firestore';
-import type { Visit, TimestampField, Staff, Doctor } from '../../../../lib/types';
+import type { Visit, Staff, Doctor } from '../../../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)
@@ -60,7 +55,6 @@ export default function VisitDetailsPage() {
   const [showPredefinedOptions, setShowPredefinedOptions] = useState(false);
   
   const searchParams = useSearchParams();
-  const router = useRouter();
   const visitId = searchParams.get('id');
 
   // Predefined visit purpose options
@@ -206,70 +200,11 @@ export default function VisitDetailsPage() {
     }
 
     // 5. Current status or checkout/checkin events
-    if (visit.status === 'checked_in') {
-      // If visit is currently checked in
-      if (visit.visitorCheckOutTime || visit.adminCheckOutTime) {
-        // Show visitor checkout if it exists
-        if (visit.visitorCheckOutTime) {
-          timeline.push({
-            id: 'visitor_checkout',
-            title: 'Visitor Checked Out',
-            description: 'Visitor left the facility',
-            timestamp: visit.visitorCheckOutTime ? 
-              (typeof visit.visitorCheckOutTime === 'object' && 'toDate' in visit.visitorCheckOutTime ? 
-                visit.visitorCheckOutTime.toDate() : 
-                visit.visitorCheckOutTime instanceof Date ? visit.visitorCheckOutTime : null
-              ) : null,
-            status: 'completed'
-          });
-        }
-
-        // Show admin checkout if it exists
-        if (visit.adminCheckOutTime) {
-          timeline.push({
-            id: 'admin_checkout',
-            title: 'Admin Checked Out',
-            description: 'Visit finalized and checked out by admin',
-            timestamp: visit.adminCheckOutTime ? 
-              (typeof visit.adminCheckOutTime === 'object' && 'toDate' in visit.adminCheckOutTime ? 
-                visit.adminCheckOutTime.toDate() : 
-                visit.adminCheckOutTime instanceof Date ? visit.adminCheckOutTime : null
-              ) : null,
-            status: 'completed'
-          });
-        }
-        
-        // Then show current checked-in status
-        timeline.push({
-          id: 'current_status',
-          title: 'Checked In Again',
-          description: 'Admin checked in again to review the visit',
-          timestamp: visit.adminCheckInTime || visit.updatedAt ? 
-            (visit.adminCheckInTime && typeof visit.adminCheckInTime === 'object' && 'toDate' in visit.adminCheckInTime ? 
-              visit.adminCheckInTime.toDate() : 
-              visit.adminCheckInTime instanceof Date ? visit.adminCheckInTime :
-              visit.updatedAt && typeof visit.updatedAt === 'object' && 'toDate' in visit.updatedAt ? 
-                visit.updatedAt.toDate() : 
-                visit.updatedAt instanceof Date ? visit.updatedAt : null
-            ) : null,
-          status: 'current'
-        });
-      } else {
-        // Normal checked-in status
-        timeline.push({
-          id: 'current_status',
-          title: 'Visit in Progress',
-          description: 'Visitor is currently in the facility',
-          timestamp: visit.updatedAt ? 
-            (typeof visit.updatedAt === 'object' && 'toDate' in visit.updatedAt ? 
-              visit.updatedAt.toDate() : 
-              visit.updatedAt instanceof Date ? visit.updatedAt : null
-            ) : null,
-          status: 'current'
-        });
-      }
-    } else if (visit.status === 'checked_out') {
-      // Show visitor checkout first
+    // Determine display based on admin checkout status, not visitor checkout
+    if (visit.adminCheckOutTime) {
+      // Admin has checked out - visit is finalized
+      
+      // Show visitor checkout if it exists and happened before admin checkout
       if (visit.visitorCheckOutTime) {
         timeline.push({
           id: 'visitor_checkout',
@@ -289,15 +224,44 @@ export default function VisitDetailsPage() {
         id: 'admin_checkout',
         title: 'Admin Checked Out',
         description: 'Visit finalized and checked out by admin',
-        timestamp: visit.adminCheckOutTime || visit.checkOutTime ? 
-          (visit.adminCheckOutTime && typeof visit.adminCheckOutTime === 'object' && 'toDate' in visit.adminCheckOutTime ? 
+        timestamp: visit.adminCheckOutTime ? 
+          (typeof visit.adminCheckOutTime === 'object' && 'toDate' in visit.adminCheckOutTime ? 
             visit.adminCheckOutTime.toDate() : 
-            visit.adminCheckOutTime instanceof Date ? visit.adminCheckOutTime :
-            visit.checkOutTime && typeof visit.checkOutTime === 'object' && 'toDate' in visit.checkOutTime ? 
-              visit.checkOutTime.toDate() : 
-              visit.checkOutTime instanceof Date ? visit.checkOutTime : null
+            visit.adminCheckOutTime instanceof Date ? visit.adminCheckOutTime : null
           ) : null,
         status: 'completed'
+      });
+    } else {
+      // Admin has not checked out yet - visit is still active from admin perspective
+      
+      // Show visitor checkout as an intermediate step if it exists
+      if (visit.visitorCheckOutTime) {
+        timeline.push({
+          id: 'visitor_checkout',
+          title: 'Visitor Checked Out',
+          description: 'Visitor left the facility (awaiting admin finalization)',
+          timestamp: visit.visitorCheckOutTime ? 
+            (typeof visit.visitorCheckOutTime === 'object' && 'toDate' in visit.visitorCheckOutTime ? 
+              visit.visitorCheckOutTime.toDate() : 
+              visit.visitorCheckOutTime instanceof Date ? visit.visitorCheckOutTime : null
+            ) : null,
+          status: 'completed'
+        });
+      }
+      
+      // Show current active status
+      timeline.push({
+        id: 'current_status',
+        title: visit.visitorCheckOutTime ? 'Pending Admin Checkout' : 'Visit in Progress',
+        description: visit.visitorCheckOutTime 
+          ? 'Visitor has left, awaiting administrative finalization' 
+          : 'Visit is currently active',
+        timestamp: visit.updatedAt ? 
+          (typeof visit.updatedAt === 'object' && 'toDate' in visit.updatedAt ? 
+            visit.updatedAt.toDate() : 
+            visit.updatedAt instanceof Date ? visit.updatedAt : null
+          ) : null,
+        status: 'current'
       });
     }
 
@@ -381,9 +345,7 @@ export default function VisitDetailsPage() {
     try {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
       
-      // If visitor hasn't checked out yet, mark it as visitor checkout first
-      const updates: any = {
-        status: 'checked_out',
+      const updates: Partial<Visit> = {
         adminCheckOutTime: serverTimestamp(),
         updatedAt: serverTimestamp(),
         userId: user.uid,
@@ -394,6 +356,9 @@ export default function VisitDetailsPage() {
       if (!visit.visitorCheckOutTime) {
         updates.visitorCheckOutTime = serverTimestamp();
       }
+
+      // Always set main status to checked_out when admin checks out
+      updates.status = 'checked_out';
 
       // Keep legacy checkOutTime for compatibility
       updates.checkOutTime = serverTimestamp();
@@ -412,15 +377,23 @@ export default function VisitDetailsPage() {
     setIsCheckingOut(true); // Using same loading state for consistency
     try {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
-      await updateDoc(visitRef, {
-        status: 'checked_in',
+      
+      const updates: Partial<Visit> = {
         adminCheckInTime: serverTimestamp(),
         adminCheckOutTime: null, // Clear admin checkout time
         checkOutTime: null, // Clear legacy check-out time for compatibility
         updatedAt: serverTimestamp(),
         userId: user.uid,
         userEmail: user.email || ''
-      });
+      };
+      
+      // Only update main status to checked_in if visitor is also checked in
+      // If visitor is still checked out, don't change the main status
+      if (!visit.visitorCheckOutTime) {
+        updates.status = 'checked_in';
+      }
+      
+      await updateDoc(visitRef, updates);
     } catch (error) {
       console.error('Error checking in visit:', error);
       alert('Failed to check in visit. Please try again.');
@@ -1000,7 +973,7 @@ export default function VisitDetailsPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No visit details added yet. Click "Quick Options" to select from predefined purposes or "Add Details" to enter custom details.</p>
+                      <p className="text-sm text-gray-500 italic">No visit details added yet. Click &quot;Quick Options&quot; to select from predefined purposes or &quot;Add Details&quot; to enter custom details.</p>
                     )}
                   </div>
                 )}
@@ -1063,8 +1036,8 @@ export default function VisitDetailsPage() {
                 </ul>
               </div>
               
-              {/* Check Out Button */}
-              {visit.status === 'checked_in' && (
+              {/* Check Out Button - Only show if admin hasn't checked out yet */}
+              {!visit.adminCheckOutTime && (
                 <div className="mt-6 pt-6 border-t border-gray-200/50">
                   <button
                     onClick={handleCheckOut}
@@ -1085,8 +1058,8 @@ export default function VisitDetailsPage() {
                 </div>
               )}
 
-              {/* Check In Button */}
-              {visit.status === 'checked_out' && (
+              {/* Check In Button - Only show if admin has checked out */}
+              {visit.adminCheckOutTime && (
                 <div className="mt-6 pt-6 border-t border-gray-200/50">
                   <button
                     onClick={handleCheckIn}
