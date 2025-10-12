@@ -56,6 +56,9 @@ export default function EnquiryDetailsPage() {
   const [showStaffDropdown, setShowStaffDropdown] = useState(false);
   const [isAssigningStaff, setIsAssigningStaff] = useState(false);
   const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
+  const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0);
+  const [showReminderExpiredPopup, setShowReminderExpiredPopup] = useState(false);
+  const [expiredEnquiry, setExpiredEnquiry] = useState<Enquiry | null>(null);
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -68,6 +71,15 @@ export default function EnquiryDetailsPage() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Update time remaining every minute for active reminders
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUpdateTrigger(prev => prev + 1);
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch staff data
@@ -136,6 +148,15 @@ export default function EnquiryDetailsPage() {
                 userId: user.uid,
                 userEmail: user.email || ''
               });
+
+              // Show popup notification for the expired enquiry
+              // Only show if this is the current enquiry being viewed
+              if (docSnap.id === enquiryId) {
+                setExpiredEnquiry(enquiryData);
+                setShowReminderExpiredPopup(true);
+                // Play notification sound
+                playNotificationSound();
+              }
             }
           }
         }
@@ -322,6 +343,45 @@ export default function EnquiryDetailsPage() {
       });
     }
 
+    // Add reminder timeline event if active
+    if (enquiry.reminderScheduledAt && enquiry.reminderDuration) {
+      const reminderTime = typeof enquiry.reminderScheduledAt === 'object' && 'toDate' in enquiry.reminderScheduledAt
+        ? enquiry.reminderScheduledAt.toDate()
+        : enquiry.reminderScheduledAt instanceof Date
+        ? enquiry.reminderScheduledAt
+        : null;
+
+      if (reminderTime) {
+        const expiryTime = new Date(reminderTime.getTime() + (enquiry.reminderDuration * 60 * 60 * 1000));
+        const timeRemaining = expiryTime.getTime() - now.getTime();
+        
+        let timeRemainingText = '';
+        if (timeRemaining > 0) {
+          const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+          
+          if (days > 0) {
+            timeRemainingText = `${days}d ${hours}h remaining`;
+          } else if (hours > 0) {
+            timeRemainingText = `${hours}h ${minutes}m remaining`;
+          } else {
+            timeRemainingText = `${minutes}m remaining`;
+          }
+        } else {
+          timeRemainingText = 'Expired - will be reset soon';
+        }
+
+        timeline.push({
+          id: 'reminder',
+          title: 'Reminder Set',
+          description: `Reminder for ${enquiry.reminderDuration} hours - ${timeRemainingText}`,
+          timestamp: reminderTime,
+          status: timeRemaining > 0 ? 'current' : 'pending'
+        });
+      }
+    }
+
     return timeline;
   };
 
@@ -412,6 +472,30 @@ export default function EnquiryDetailsPage() {
       alert('Failed to cancel reminder. Please try again.');
     }
     setIsSettingReminder(false);
+  };
+
+  // Function to play notification sound
+  const playNotificationSound = () => {
+    try {
+      // Create a simple beep sound using Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // Frequency in Hz
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.warn('Could not play notification sound:', error);
+    }
   };
 
   const handleAssignStaff = async (staffName: string) => {
@@ -981,7 +1065,37 @@ export default function EnquiryDetailsPage() {
                                 Reminder active for {enquiry.reminderDuration} hours
                               </span>
                               <p className="text-xs text-blue-600 mt-1">
-                                Will return to pending status automatically
+                                {(() => {
+                                  if (!enquiry.reminderScheduledAt || !enquiry.reminderDuration) return 'Will return to pending status automatically';
+                                  
+                                  const reminderTime = typeof enquiry.reminderScheduledAt === 'object' && 'toDate' in enquiry.reminderScheduledAt
+                                    ? enquiry.reminderScheduledAt.toDate()
+                                    : enquiry.reminderScheduledAt instanceof Date
+                                    ? enquiry.reminderScheduledAt
+                                    : null;
+
+                                  if (!reminderTime) return 'Will return to pending status automatically';
+
+                                  const now = new Date();
+                                  const expiryTime = new Date(reminderTime.getTime() + (enquiry.reminderDuration * 60 * 60 * 1000));
+                                  const timeRemaining = expiryTime.getTime() - now.getTime();
+                                  
+                                  if (timeRemaining > 0) {
+                                    const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+                                    const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                    const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+                                    
+                                    if (days > 0) {
+                                      return `Time remaining: ${days}d ${hours}h`;
+                                    } else if (hours > 0) {
+                                      return `Time remaining: ${hours}h ${minutes}m`;
+                                    } else {
+                                      return `Time remaining: ${minutes}m`;
+                                    }
+                                  } else {
+                                    return 'Reminder expired - will be reset soon';
+                                  }
+                                })()}
                               </p>
                             </div>
                           </div>
@@ -1047,6 +1161,23 @@ export default function EnquiryDetailsPage() {
                         </svg>
                         Remind me in 5 days
                       </button>
+                      
+                      {/* Test button - Remove in production */}
+                      <button
+                        onClick={() => {
+                          if (enquiry) {
+                            setExpiredEnquiry(enquiry);
+                            setShowReminderExpiredPopup(true);
+                            playNotificationSound();
+                          }
+                        }}
+                        className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        Test Reminder Popup
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1055,6 +1186,77 @@ export default function EnquiryDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Reminder Expired Popup */}
+      {showReminderExpiredPopup && expiredEnquiry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-bounce-in">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-4 animate-pulse">
+              <div className="flex items-center">
+                <svg className="w-6 h-6 text-white mr-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <h3 className="text-lg font-bold text-white">⚠️ Reminder Expired</h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                  🔔 Enquiry is Still Pending
+                </h4>
+                <p className="text-gray-600 mb-3">
+                  The reminder timer has expired and this enquiry has been automatically returned to pending status. Please review and take action.
+                </p>
+                
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2 border-l-4 border-orange-400">
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium text-gray-600">Visitor:</span>
+                    <span className="text-sm text-gray-900 font-semibold">{expiredEnquiry.enquirerName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium text-gray-600">Patient:</span>
+                    <span className="text-sm text-gray-900 font-semibold">{expiredEnquiry.patientName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium text-gray-600">Mobile:</span>
+                    <span className="text-sm text-gray-900 font-semibold">{expiredEnquiry.enquirerMobile || 'N/A'}</span>
+                  </div>
+                  {expiredEnquiry.enquiryDetails && (
+                    <div className="pt-2 border-t border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Details:</span>
+                      <p className="text-sm text-gray-900 mt-1">{expiredEnquiry.enquiryDetails}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowReminderExpiredPopup(false);
+                    setExpiredEnquiry(null);
+                  }}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200"
+                >
+                  Dismiss
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReminderExpiredPopup(false);
+                    setExpiredEnquiry(null);
+                    // Optionally redirect to the enquiries list
+                    router.push('/admin/enquiries');
+                  }}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200"
+                >
+                  View All Enquiries
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
