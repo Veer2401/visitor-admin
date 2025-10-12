@@ -21,6 +21,9 @@ export interface Visit {
   attendedAt?: Timestamp | FieldValue | Date | null; // When staff was assigned
   assignedDoctor?: string; // Name of doctor assigned for the visit
   assignedDoctorAt?: Timestamp | FieldValue | Date | null; // When doctor was assigned
+  visitorCheckOutTime?: Timestamp | FieldValue | Date | null; // When visitor left (initial checkout)
+  adminCheckOutTime?: Timestamp | FieldValue | Date | null; // When admin finalized the checkout
+  adminCheckInTime?: Timestamp | FieldValue | Date | null; // When admin checked visitor back in
 }
 
 export interface Visitor {

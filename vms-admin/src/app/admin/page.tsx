@@ -194,8 +194,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((user) => {
+      // Define authorized emails
+      const authorizedEmails = [
+        'veerharischandrakar@gmail.com',
+        'ganesh.khandekar@kalpavrukshacare.com',
+        'punesatararoad@kalpavrukshacare.com'
+      ];
+      
       // Check if user email is authorized
-      if (user && user.email !== 'veerharischandrakar@gmail.com') {
+      if (user && (!user.email || !authorizedEmails.includes(user.email))) {
         // Sign out unauthorized user
         signOutUser().catch(console.error);
         setUser(null);
@@ -595,7 +602,6 @@ export default function AdminPage() {
       }
     }
   };
-
   const handleSignOut = async () => {
     try {
       await signOutUser();
@@ -640,9 +646,10 @@ export default function AdminPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
               <p className="text-gray-600 mb-8 text-sm leading-relaxed">Sign in to access the Kalpavruksha Admin Dashboard</p>
               
+              {/* Google Sign In Button */}
               <button
                 onClick={handleSignIn}
-                className="w-full flex items-center justify-center px-6 py-4 border border-gray-200 rounded-xl shadow-sm bg-white text-base font-medium text-gray-700 hover:bg-gray-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                className="w-full flex items-center justify-center px-6 py-4 border border-gray-200 rounded-xl shadow-sm bg-white text-base font-medium text-gray-700 hover:bg-gray-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 mb-4"
               >
                 <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

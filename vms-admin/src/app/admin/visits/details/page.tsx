@@ -180,7 +180,7 @@ export default function VisitDetailsPage() {
       timeline.push({
         id: 'doctor_assigned',
         title: 'Doctor Assigned',
-        description: `Assigned to Dr. ${visit.assignedDoctor}`,
+        description: `Assigned to ${visit.assignedDoctor}`,
         timestamp: visit.assignedDoctorAt ? 
           (typeof visit.assignedDoctorAt === 'object' && 'toDate' in visit.assignedDoctorAt ? 
             visit.assignedDoctorAt.toDate() : 
@@ -208,29 +208,49 @@ export default function VisitDetailsPage() {
     // 5. Current status or checkout/checkin events
     if (visit.status === 'checked_in') {
       // If visit is currently checked in
-      if (visit.checkOutTime) {
-        // If there was a previous checkout, show it first
-        timeline.push({
-          id: 'previous_checkout',
-          title: 'Previously Checked Out',
-          description: `Visit was checked out by admin`,
-          timestamp: visit.checkOutTime ? 
-            (typeof visit.checkOutTime === 'object' && 'toDate' in visit.checkOutTime ? 
-              visit.checkOutTime.toDate() : 
-              visit.checkOutTime instanceof Date ? visit.checkOutTime : null
-            ) : null,
-          status: 'completed'
-        });
+      if (visit.visitorCheckOutTime || visit.adminCheckOutTime) {
+        // Show visitor checkout if it exists
+        if (visit.visitorCheckOutTime) {
+          timeline.push({
+            id: 'visitor_checkout',
+            title: 'Visitor Checked Out',
+            description: 'Visitor left the facility',
+            timestamp: visit.visitorCheckOutTime ? 
+              (typeof visit.visitorCheckOutTime === 'object' && 'toDate' in visit.visitorCheckOutTime ? 
+                visit.visitorCheckOutTime.toDate() : 
+                visit.visitorCheckOutTime instanceof Date ? visit.visitorCheckOutTime : null
+              ) : null,
+            status: 'completed'
+          });
+        }
+
+        // Show admin checkout if it exists
+        if (visit.adminCheckOutTime) {
+          timeline.push({
+            id: 'admin_checkout',
+            title: 'Admin Checked Out',
+            description: 'Visit finalized and checked out by admin',
+            timestamp: visit.adminCheckOutTime ? 
+              (typeof visit.adminCheckOutTime === 'object' && 'toDate' in visit.adminCheckOutTime ? 
+                visit.adminCheckOutTime.toDate() : 
+                visit.adminCheckOutTime instanceof Date ? visit.adminCheckOutTime : null
+              ) : null,
+            status: 'completed'
+          });
+        }
         
         // Then show current checked-in status
         timeline.push({
           id: 'current_status',
           title: 'Checked In Again',
-          description: 'Visitor was checked back in and is currently in the facility',
-          timestamp: visit.updatedAt ? 
-            (typeof visit.updatedAt === 'object' && 'toDate' in visit.updatedAt ? 
-              visit.updatedAt.toDate() : 
-              visit.updatedAt instanceof Date ? visit.updatedAt : null
+          description: 'Admin checked in again to review the visit',
+          timestamp: visit.adminCheckInTime || visit.updatedAt ? 
+            (visit.adminCheckInTime && typeof visit.adminCheckInTime === 'object' && 'toDate' in visit.adminCheckInTime ? 
+              visit.adminCheckInTime.toDate() : 
+              visit.adminCheckInTime instanceof Date ? visit.adminCheckInTime :
+              visit.updatedAt && typeof visit.updatedAt === 'object' && 'toDate' in visit.updatedAt ? 
+                visit.updatedAt.toDate() : 
+                visit.updatedAt instanceof Date ? visit.updatedAt : null
             ) : null,
           status: 'current'
         });
@@ -249,14 +269,33 @@ export default function VisitDetailsPage() {
         });
       }
     } else if (visit.status === 'checked_out') {
+      // Show visitor checkout first
+      if (visit.visitorCheckOutTime) {
+        timeline.push({
+          id: 'visitor_checkout',
+          title: 'Visitor Checked Out',
+          description: 'Visitor left the facility',
+          timestamp: visit.visitorCheckOutTime ? 
+            (typeof visit.visitorCheckOutTime === 'object' && 'toDate' in visit.visitorCheckOutTime ? 
+              visit.visitorCheckOutTime.toDate() : 
+              visit.visitorCheckOutTime instanceof Date ? visit.visitorCheckOutTime : null
+            ) : null,
+          status: 'completed'
+        });
+      }
+
+      // Show admin checkout as final step
       timeline.push({
-        id: 'checkout',
+        id: 'admin_checkout',
         title: 'Admin Checked Out',
-        description: `Visit completed and checked out by admin`,
-        timestamp: visit.checkOutTime ? 
-          (typeof visit.checkOutTime === 'object' && 'toDate' in visit.checkOutTime ? 
-            visit.checkOutTime.toDate() : 
-            visit.checkOutTime instanceof Date ? visit.checkOutTime : null
+        description: 'Visit finalized and checked out by admin',
+        timestamp: visit.adminCheckOutTime || visit.checkOutTime ? 
+          (visit.adminCheckOutTime && typeof visit.adminCheckOutTime === 'object' && 'toDate' in visit.adminCheckOutTime ? 
+            visit.adminCheckOutTime.toDate() : 
+            visit.adminCheckOutTime instanceof Date ? visit.adminCheckOutTime :
+            visit.checkOutTime && typeof visit.checkOutTime === 'object' && 'toDate' in visit.checkOutTime ? 
+              visit.checkOutTime.toDate() : 
+              visit.checkOutTime instanceof Date ? visit.checkOutTime : null
           ) : null,
         status: 'completed'
       });
@@ -298,7 +337,7 @@ export default function VisitDetailsPage() {
     try {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
       await updateDoc(visitRef, {
-        assignedDoctor: doctorName,
+        assignedDoctor: `Dr. ${doctorName}`, // Store with Dr. prefix
         assignedDoctorAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         userId: user.uid,
@@ -341,13 +380,25 @@ export default function VisitDetailsPage() {
     setIsCheckingOut(true);
     try {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
-      await updateDoc(visitRef, {
+      
+      // If visitor hasn't checked out yet, mark it as visitor checkout first
+      const updates: any = {
         status: 'checked_out',
-        checkOutTime: serverTimestamp(),
+        adminCheckOutTime: serverTimestamp(),
         updatedAt: serverTimestamp(),
         userId: user.uid,
         userEmail: user.email || ''
-      });
+      };
+
+      // If no visitor checkout time exists, assume visitor just left and set it
+      if (!visit.visitorCheckOutTime) {
+        updates.visitorCheckOutTime = serverTimestamp();
+      }
+
+      // Keep legacy checkOutTime for compatibility
+      updates.checkOutTime = serverTimestamp();
+
+      await updateDoc(visitRef, updates);
     } catch (error) {
       console.error('Error checking out visit:', error);
       alert('Failed to check out visit. Please try again.');
@@ -363,7 +414,9 @@ export default function VisitDetailsPage() {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
       await updateDoc(visitRef, {
         status: 'checked_in',
-        checkOutTime: null, // Clear check-out time
+        adminCheckInTime: serverTimestamp(),
+        adminCheckOutTime: null, // Clear admin checkout time
+        checkOutTime: null, // Clear legacy check-out time for compatibility
         updatedAt: serverTimestamp(),
         userId: user.uid,
         userEmail: user.email || ''
@@ -698,7 +751,7 @@ export default function VisitDetailsPage() {
                   {visit.assignedDoctor && (
                     <div>
                       <span className="text-sm font-medium text-gray-500">Assigned Doctor</span>
-                      <p className="mt-1 text-sm font-semibold text-blue-700">Dr. {visit.assignedDoctor}</p>
+                      <p className="mt-1 text-sm font-semibold text-blue-700">{visit.assignedDoctor}</p>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-4">
@@ -915,7 +968,7 @@ export default function VisitDetailsPage() {
                         {visitDetails === "To Meet Dr" && visit.assignedDoctor && (
                           <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
                             <p className="text-sm font-semibold text-blue-900">
-                              Assigned to: Dr. {visit.assignedDoctor}
+                              Assigned to: {visit.assignedDoctor}
                             </p>
                             {visit.assignedDoctorAt && (
                               <p className="text-xs text-blue-700 mt-1">

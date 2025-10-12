@@ -41,12 +41,19 @@ export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, provider);
     
+    // Define authorized emails
+    const authorizedEmails = [
+      'veerharischandrakar@gmail.com',
+      'ganesh.khandekar@kalpavrukshacare.com',
+      'punesatararoad@kalpavrukshacare.com'
+    ];
+    
     // Check if the email is authorized
     const userEmail = result.user.email;
-    if (userEmail !== 'veerharischandrakar@gmail.com') {
+    if (!userEmail || !authorizedEmails.includes(userEmail)) {
       // Sign out the unauthorized user
       await signOut(auth);
-      throw new Error('Unauthorized email. Only veerharischandrakar@gmail.com is allowed to access this admin panel.');
+      throw new Error('Unauthorized email. Only authorized admin emails are allowed to access this admin panel.');
     }
     
     return result.user;
@@ -60,6 +67,7 @@ export const signOutUser = async () => {
   if (!auth) throw new Error('Auth not initialized');
   
   try {
+    // Sign out from Firebase
     await signOut(auth);
   } catch (error) {
     console.error('Error signing out:', error);
@@ -70,7 +78,12 @@ export const signOutUser = async () => {
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
   if (!auth) return () => {};
   
-  return onAuthStateChanged(auth, callback);
+  // Listen to Firebase auth state changes
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    callback(user);
+  });
+  
+  return unsubscribe;
 };
 
 export const getCurrentUser = () => {
