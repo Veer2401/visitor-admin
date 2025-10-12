@@ -17,9 +17,10 @@ import {
   serverTimestamp,
   DocumentData,
   DocumentSnapshot,
+  QuerySnapshot,
   where
 } from 'firebase/firestore';
-import type { Enquiry, TimestampField, Staff } from '../../../../lib/types';
+import type { Enquiry, Staff } from '../../../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)
@@ -56,7 +57,6 @@ export default function EnquiryDetailsPage() {
   const [showStaffDropdown, setShowStaffDropdown] = useState(false);
   const [isAssigningStaff, setIsAssigningStaff] = useState(false);
   const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
-  const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0);
   const [showReminderExpiredPopup, setShowReminderExpiredPopup] = useState(false);
   const [expiredEnquiry, setExpiredEnquiry] = useState<Enquiry | null>(null);
   
@@ -68,19 +68,60 @@ export default function EnquiryDetailsPage() {
     const unsubscribe = onAuthStateChange((user) => {
       setUser(user);
       setAuthLoading(false);
+      
+      // When user signs in, check for expired reminders after a brief delay
+      if (user && enquiryId) {
+        setTimeout(() => {
+          checkForExpiredRemindersOnSignIn();
+        }, 2000); // 2 second delay to ensure data is loaded
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [enquiryId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Function to check for expired reminders when user signs in
+  const checkForExpiredRemindersOnSignIn = async () => {
+    if (!db || !user || !enquiryId) return;
+    
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      const docSnap = await getDoc(enquiryRef);
+      
+      if (docSnap.exists()) {
+        const enquiryData = { id: docSnap.id, ...docSnap.data() } as Enquiry;
+        checkForExpiredReminderOnLoad(enquiryData);
+      }
+    } catch (error) {
+      console.error('Error checking expired reminders on sign in:', error);
+    }
+  };
 
   // Update time remaining every minute for active reminders
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeUpdateTrigger(prev => prev + 1);
-    }, 60000); // Update every minute
-
-    return () => clearInterval(interval);
+    // Clean up old localStorage entries once per session
+    cleanupOldPopupRecords();
   }, []);
+
+  // Function to clean up old popup records from localStorage
+  const cleanupOldPopupRecords = () => {
+    try {
+      const sevenDaysAgo = new Date().getTime() - (7 * 24 * 60 * 60 * 1000);
+      
+      // Get all localStorage keys that match our pattern
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('reminder_popup_shown_')) {
+          const timestamp = localStorage.getItem(key);
+          if (timestamp && parseInt(timestamp) < sevenDaysAgo) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Could not clean up localStorage:', error);
+    }
+  };
 
   // Fetch staff data
   useEffect(() => {
@@ -113,7 +154,7 @@ export default function EnquiryDetailsPage() {
           where('reminderScheduledAt', '!=', null)
         );
         
-        const snapshot = await new Promise<any>((resolve) => {
+        const snapshot = await new Promise<QuerySnapshot>((resolve) => {
           const unsubscribe = onSnapshot(enquiriesQuery, (snapshot) => {
             unsubscribe();
             resolve(snapshot);
@@ -143,7 +184,7 @@ export default function EnquiryDetailsPage() {
                 reminderScheduledAt: null,
                 reminderDuration: null,
                 originalStatus: null,
-                lastNotificationShown: null,
+                lastNotificationShown: null, // Reset this so popup can show again
                 updatedAt: serverTimestamp(),
                 userId: user.uid,
                 userEmail: user.email || ''
@@ -152,10 +193,35 @@ export default function EnquiryDetailsPage() {
               // Show popup notification for the expired enquiry
               // Only show if this is the current enquiry being viewed
               if (docSnap.id === enquiryId) {
-                setExpiredEnquiry(enquiryData);
-                setShowReminderExpiredPopup(true);
-                // Play notification sound
-                playNotificationSound();
+                // Check localStorage to avoid showing duplicate popups
+                const localStorageKey = `reminder_popup_shown_${docSnap.id}`;
+                let lastShownTime = 0;
+                
+                try {
+                  const lastShownLocal = localStorage.getItem(localStorageKey);
+                  lastShownTime = lastShownLocal ? parseInt(lastShownLocal) : 0;
+                } catch (error) {
+                  console.warn('localStorage not available:', error);
+                }
+                
+                const now = new Date().getTime();
+                const thirtyMinutes = 30 * 60 * 1000;
+                
+                // Only show if not shown in last 30 minutes
+                if (now - lastShownTime > thirtyMinutes) {
+                  setExpiredEnquiry(enquiryData);
+                  setShowReminderExpiredPopup(true);
+                  // Play notification sound
+                  playNotificationSound();
+                  
+                  // Update localStorage and database
+                  try {
+                    localStorage.setItem(localStorageKey, now.toString());
+                  } catch (error) {
+                    console.warn('Could not update localStorage:', error);
+                  }
+                  setTimeout(() => updateLastNotificationShown(docSnap.id), 1000);
+                }
               }
             }
           }
@@ -170,7 +236,7 @@ export default function EnquiryDetailsPage() {
     const interval = setInterval(checkExpiredReminders, 60000);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!db || !user || !enquiryId) {
@@ -185,6 +251,9 @@ export default function EnquiryDetailsPage() {
         const enquiryData = { id: doc.id, ...doc.data() } as Enquiry;
         setEnquiry(enquiryData);
         setEnquiryDetails(enquiryData.enquiryDetails || '');
+        
+        // Check if this enquiry had an expired reminder on load/reload
+        checkForExpiredReminderOnLoad(enquiryData);
       } else {
         setEnquiry(null);
       }
@@ -211,6 +280,96 @@ export default function EnquiryDetailsPage() {
       unsubPending();
     };
   }, [user, enquiryId]);
+
+  // Function to check for expired reminders when page loads or enquiry data changes
+  const checkForExpiredReminderOnLoad = (enquiryData: Enquiry) => {
+    if (!enquiryData.reminderScheduledAt || !enquiryData.reminderDuration) return;
+    
+    const now = new Date().getTime();
+    const reminderTime = typeof enquiryData.reminderScheduledAt === 'object' && 'toDate' in enquiryData.reminderScheduledAt
+      ? enquiryData.reminderScheduledAt.toDate().getTime()
+      : enquiryData.reminderScheduledAt instanceof Date
+      ? enquiryData.reminderScheduledAt.getTime()
+      : 0;
+    
+    const expiryTime = reminderTime + (enquiryData.reminderDuration * 60 * 60 * 1000);
+    
+    // Check if reminder has expired
+    if (now >= expiryTime) {
+      // Check if this enquiry was recently reset to pending status
+      // This indicates it was an expired reminder
+      if (enquiryData.status === 'pending' && enquiryData.pendingSince) {
+        const pendingSinceTime = typeof enquiryData.pendingSince === 'object' && 'toDate' in enquiryData.pendingSince
+          ? enquiryData.pendingSince.toDate().getTime()
+          : enquiryData.pendingSince instanceof Date
+          ? enquiryData.pendingSince.getTime()
+          : 0;
+        
+        // Show popup if enquiry was reset to pending within the last 24 hours
+        // This ensures we show the popup on reload/sign-in for recently expired reminders
+        const timeSincePending = now - pendingSinceTime;
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        
+        if (timeSincePending <= twentyFourHours) {
+          // Check localStorage to see if we've shown this popup recently
+          const localStorageKey = `reminder_popup_shown_${enquiryData.id}`;
+          let lastShownTime = 0;
+          
+          try {
+            const lastShownLocal = localStorage.getItem(localStorageKey);
+            lastShownTime = lastShownLocal ? parseInt(lastShownLocal) : 0;
+          } catch (error) {
+            console.warn('localStorage not available:', error);
+          }
+          
+          // Also check database timestamp
+          const lastNotificationTime = enquiryData.lastNotificationShown
+            ? (typeof enquiryData.lastNotificationShown === 'object' && 'toDate' in enquiryData.lastNotificationShown
+                ? enquiryData.lastNotificationShown.toDate().getTime()
+                : enquiryData.lastNotificationShown instanceof Date
+                ? enquiryData.lastNotificationShown.getTime()
+                : 0)
+            : 0;
+          
+          // Show popup if no notification was shown in the last 30 minutes (local or database)
+          const thirtyMinutes = 30 * 60 * 1000;
+          const shouldShowPopup = (now - lastShownTime > thirtyMinutes) && 
+                                  (now - lastNotificationTime > thirtyMinutes);
+          
+          if (shouldShowPopup) {
+            setExpiredEnquiry(enquiryData);
+            setShowReminderExpiredPopup(true);
+            playNotificationSound();
+            
+            // Update both localStorage and database
+            try {
+              localStorage.setItem(localStorageKey, now.toString());
+            } catch (error) {
+              console.warn('Could not update localStorage:', error);
+            }
+            updateLastNotificationShown(enquiryData.id!);
+          }
+        }
+      }
+    }
+  };
+
+  // Function to update the last notification shown timestamp
+  const updateLastNotificationShown = async (enquiryId: string) => {
+    if (!db || !user) return;
+    
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        lastNotificationShown: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+    } catch (error) {
+      console.error('Error updating last notification shown:', error);
+    }
+  };
 
   const generateTimeline = (enquiry: Enquiry): TimelineEvent[] => {
     if (!enquiry) return [];
@@ -478,7 +637,7 @@ export default function EnquiryDetailsPage() {
   const playNotificationSound = () => {
     try {
       // Create a simple beep sound using Web Audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -962,7 +1121,7 @@ export default function EnquiryDetailsPage() {
                         <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{enquiryDetails}</p>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click "Add Details" to enter custom details.</p>
+                      <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click &quot;Add Details&quot; to enter custom details.</p>
                     )}
                   </div>
                 )}
@@ -1161,23 +1320,6 @@ export default function EnquiryDetailsPage() {
                         </svg>
                         Remind me in 5 days
                       </button>
-                      
-                      {/* Test button - Remove in production */}
-                      <button
-                        onClick={() => {
-                          if (enquiry) {
-                            setExpiredEnquiry(enquiry);
-                            setShowReminderExpiredPopup(true);
-                            playNotificationSound();
-                          }
-                        }}
-                        className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                        Test Reminder Popup
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1234,6 +1376,15 @@ export default function EnquiryDetailsPage() {
               <div className="flex space-x-3">
                 <button
                   onClick={() => {
+                    // Record dismissal in localStorage
+                    if (expiredEnquiry?.id) {
+                      try {
+                        const localStorageKey = `reminder_popup_shown_${expiredEnquiry.id}`;
+                        localStorage.setItem(localStorageKey, new Date().getTime().toString());
+                      } catch (error) {
+                        console.warn('Could not update localStorage:', error);
+                      }
+                    }
                     setShowReminderExpiredPopup(false);
                     setExpiredEnquiry(null);
                   }}
@@ -1243,6 +1394,15 @@ export default function EnquiryDetailsPage() {
                 </button>
                 <button
                   onClick={() => {
+                    // Record dismissal in localStorage
+                    if (expiredEnquiry?.id) {
+                      try {
+                        const localStorageKey = `reminder_popup_shown_${expiredEnquiry.id}`;
+                        localStorage.setItem(localStorageKey, new Date().getTime().toString());
+                      } catch (error) {
+                        console.warn('Could not update localStorage:', error);
+                      }
+                    }
                     setShowReminderExpiredPopup(false);
                     setExpiredEnquiry(null);
                     // Optionally redirect to the enquiries list

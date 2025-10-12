@@ -9,11 +9,9 @@ import {
   collection as col,
   onSnapshot,
   query,
-  orderBy,
   addDoc,
   deleteDoc,
   doc,
-  serverTimestamp,
   QuerySnapshot,
   DocumentData,
   DocumentSnapshot

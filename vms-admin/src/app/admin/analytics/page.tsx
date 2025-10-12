@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { initFirebase, db, VISITS_COLLECTION, ENQUIRIES_COLLECTION } from '../../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../lib/auth';
-import PendingEnquiryAlert from '../../../components/PendingEnquiryAlert';
 import {
   collection as col,
   onSnapshot,
@@ -15,7 +14,7 @@ import {
   DocumentSnapshot,
   where
 } from 'firebase/firestore';
-import type { Visit, Enquiry, TimestampField } from '../../../lib/types';
+import type { Visit, Enquiry } from '../../../lib/types';
 import type { User } from 'firebase/auth';
 
 // Initialize from env (will be set in environment when running)

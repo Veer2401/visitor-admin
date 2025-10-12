@@ -69,7 +69,6 @@ export default function EnquiriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
   const [dateFilter, setDateFilter] = useState('');
-  const [emailFilter, setEmailFilter] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -479,7 +478,7 @@ export default function EnquiriesPage() {
     try {
       // Check if status is changing to pending
       const currentEnquiry = enquiries.find(e => e.id === enquiryId);
-      const updateFields: any = {
+      const updateFields: Partial<Enquiry> & { updatedAt: any; userId: string } = {
         ...updatedData,
         updatedAt: serverTimestamp(),
         userId: user.uid,

@@ -69,7 +69,6 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out'>('all');
   const [dateFilter, setDateFilter] = useState('');
-  const [emailFilter, setEmailFilter] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -629,11 +628,11 @@ export default function AdminPage() {
   const handleSignIn = async () => {
     try {
       await signInWithGoogle();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Sign in failed:', error);
       
       // Show specific error message for unauthorized emails
-      if (error.message && error.message.includes('Unauthorized email')) {
+      if (error instanceof Error && error.message && error.message.includes('Unauthorized email')) {
         alert('Access Denied: Only the administrator email is authorized to access this dashboard.');
       } else {
         alert('Sign in failed. Please try again.');

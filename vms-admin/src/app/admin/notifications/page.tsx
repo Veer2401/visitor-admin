@@ -314,7 +314,7 @@ export default function NotificationsPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                            {enquiry.patientName}'s Enquiry is pending
+                            {enquiry.patientName}&apos;s Enquiry is pending
                           </h4>
                           <div className="space-y-1 text-sm text-gray-600">
                             <p><span className="font-medium">Visitor:</span> {enquiry.enquirerName}</p>
