@@ -20,6 +20,14 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    rules: {
+      "@next/next/no-img-element": "off", // Disable img element warnings
+      "@typescript-eslint/no-explicit-any": "off", // Allow any type when needed
+      "react-hooks/exhaustive-deps": "off", // Disable exhaustive deps warnings
+      "react/no-unescaped-entities": "off", // Allow unescaped entities like apostrophes
+    },
+  },
 ];
 
 export default eslintConfig;

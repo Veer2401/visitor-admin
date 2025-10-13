@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -43,7 +43,7 @@ interface TimelineEvent {
   status: 'completed' | 'current' | 'pending';
 }
 
-export default function EnquiryDetailsPage() {
+function EnquiryDetailsPageContent() {
   const [enquiry, setEnquiry] = useState<Enquiry | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -78,7 +78,7 @@ export default function EnquiryDetailsPage() {
     });
 
     return () => unsubscribe();
-  }, [enquiryId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enquiryId]);
 
   // Function to check for expired reminders when user signs in
   const checkForExpiredRemindersOnSignIn = async () => {
@@ -236,7 +236,7 @@ export default function EnquiryDetailsPage() {
     const interval = setInterval(checkExpiredReminders, 60000);
 
     return () => clearInterval(interval);
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     if (!db || !user || !enquiryId) {
@@ -1418,5 +1418,20 @@ export default function EnquiryDetailsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function EnquiryDetailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading enquiry details...</p>
+        </div>
+      </div>
+    }>
+      <EnquiryDetailsPageContent />
+    </Suspense>
   );
 }

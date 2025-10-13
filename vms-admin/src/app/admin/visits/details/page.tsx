@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -37,7 +37,7 @@ interface TimelineEvent {
   status: 'completed' | 'current' | 'pending';
 }
 
-export default function VisitDetailsPage() {
+function VisitDetailsContent() {
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -53,6 +53,10 @@ export default function VisitDetailsPage() {
   const [isAssigningDoctor, setIsAssigningDoctor] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showPredefinedOptions, setShowPredefinedOptions] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [docRemarks, setDocRemarks] = useState('');
+  const [isEditingDocRemarks, setIsEditingDocRemarks] = useState(false);
+  const [isSavingDocRemarks, setIsSavingDocRemarks] = useState(false);
   
   const searchParams = useSearchParams();
   const visitId = searchParams.get('id');
@@ -125,6 +129,7 @@ export default function VisitDetailsPage() {
         const visitData = { id: doc.id, ...doc.data() } as Visit;
         setVisit(visitData);
         setVisitDetails(visitData.visitDetails || '');
+        setDocRemarks(visitData.docRemarks || '');
       } else {
         setVisit(null);
       }
@@ -179,6 +184,21 @@ export default function VisitDetailsPage() {
           (typeof visit.assignedDoctorAt === 'object' && 'toDate' in visit.assignedDoctorAt ? 
             visit.assignedDoctorAt.toDate() : 
             visit.assignedDoctorAt instanceof Date ? visit.assignedDoctorAt : null
+          ) : null,
+        status: 'completed'
+      });
+    }
+
+    // 3.5. Doctor remarks (if provided)
+    if (visit.docRemarks) {
+      timeline.push({
+        id: 'doctor_remarks',
+        title: 'Doctor Remarks',
+        description: `${visit.docRemarks}`,
+        timestamp: visit.docRemarksAt ? 
+          (typeof visit.docRemarksAt === 'object' && 'toDate' in visit.docRemarksAt ? 
+            visit.docRemarksAt.toDate() : 
+            visit.docRemarksAt instanceof Date ? visit.docRemarksAt : null
           ) : null,
         status: 'completed'
       });
@@ -294,6 +314,27 @@ export default function VisitDetailsPage() {
     setIsSavingDetails(false);
   };
 
+  const handleSaveDocRemarks = async () => {
+    if (!db || !visitId || !user) return;
+
+    setIsSavingDocRemarks(true);
+    try {
+      const visitRef = doc(db, VISITS_COLLECTION, visitId);
+      await updateDoc(visitRef, {
+        docRemarks: docRemarks,
+        docRemarksAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+      setIsEditingDocRemarks(false);
+    } catch (error) {
+      console.error('Error saving doctor remarks:', error);
+      alert('Failed to save doctor remarks. Please try again.');
+    }
+    setIsSavingDocRemarks(false);
+  };
+
   const handleAssignDoctor = async (doctorName: string) => {
     if (!db || !visitId || !user || !visit) return;
 
@@ -406,14 +447,54 @@ export default function VisitDetailsPage() {
       setVisitDetails('');
       setShowPredefinedOptions(false);
       setIsEditingDetails(true);
-    } else if (option === "To Meet Dr") {
-      setVisitDetails(option);
-      setShowPredefinedOptions(false);
-      // Don't close the quick options, instead show doctor selection
-      setShowDoctorDropdown(true);
+      setSelectedOptions([]);
     } else {
-      setVisitDetails(option);
+      // Toggle selection for multi-select
+      setSelectedOptions(prev => {
+        if (prev.includes(option)) {
+          // Remove if already selected
+          return prev.filter(item => item !== option);
+        } else {
+          // Add if not selected
+          return [...prev, option];
+        }
+      });
+    }
+  };
+
+  const handleSaveSelectedOptions = async () => {
+    if (selectedOptions.length === 0 || !db || !visitId || !user) return;
+    
+    // Combine selected options with bullet points
+    const combinedDetails = selectedOptions.join('\n• ');
+    const newDetails = '• ' + combinedDetails;
+    
+    // If there are existing details, append new ones
+    const finalDetails = visitDetails 
+      ? visitDetails + '\n' + newDetails
+      : newDetails;
+    
+    try {
+      // Save to Firebase immediately
+      const visitRef = doc(db, VISITS_COLLECTION, visitId);
+      await updateDoc(visitRef, {
+        visitDetails: finalDetails,
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      setVisitDetails(finalDetails);
       setShowPredefinedOptions(false);
+      setSelectedOptions([]);
+      
+      // If "To Meet Dr" is selected, show doctor dropdown
+      if (selectedOptions.includes("To Meet Dr")) {
+        setShowDoctorDropdown(true);
+      }
+    } catch (error) {
+      console.error('Error saving selected options:', error);
+      alert('Failed to save selected options. Please try again.');
     }
   };
 
@@ -807,7 +888,7 @@ export default function VisitDetailsPage() {
                         )}
                       </div>
                     )}
-                    {!isEditingDetails && !visitDetails && (
+                    {!isEditingDetails && (
                       <button
                         onClick={() => setShowPredefinedOptions(!showPredefinedOptions)}
                         className="text-sm font-bold px-4 py-2 rounded-xl transition-colors bg-purple-600 hover:bg-purple-700 text-white"
@@ -815,7 +896,7 @@ export default function VisitDetailsPage() {
                         <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
-                        Quick Options
+                        {visitDetails ? 'Add More Options' : 'Quick Options'}
                       </button>
                     )}
                     {!isEditingDetails && (
@@ -845,24 +926,52 @@ export default function VisitDetailsPage() {
                 {/* Predefined Options Dropdown */}
                 {showPredefinedOptions && (
                   <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Visit Purpose:</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Visit Purpose(s) - You can select multiple:</h3>
                     <div className="grid grid-cols-2 gap-3">
                       {predefinedOptions.map((option) => (
-                        <button
+                        <div
                           key={option}
                           onClick={() => handlePredefinedOptionSelect(option)}
-                          className="text-left p-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 text-sm font-medium text-gray-700 hover:text-blue-700"
+                          className={`cursor-pointer p-3 rounded-xl border transition-all duration-200 text-sm font-medium flex items-center space-x-3 ${
+                            selectedOptions.includes(option)
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-gray-700 hover:text-blue-700'
+                          }`}
                         >
-                          {option}
-                        </button>
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                            selectedOptions.includes(option)
+                              ? 'border-blue-500 bg-blue-500'
+                              : 'border-gray-300'
+                          }`}>
+                            {selectedOptions.includes(option) && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          <span>{option}</span>
+                        </div>
                       ))}
                     </div>
-                    <button
-                      onClick={() => setShowPredefinedOptions(false)}
-                      className="mt-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
+                    <div className="flex justify-between mt-4">
+                      <button
+                        onClick={() => {
+                          setShowPredefinedOptions(false);
+                          setSelectedOptions([]);
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      {selectedOptions.length > 0 && (
+                        <button
+                          onClick={handleSaveSelectedOptions}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                        >
+                          Add Selected ({selectedOptions.length})
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -979,6 +1088,95 @@ export default function VisitDetailsPage() {
                 )}
               </div>
             </div>
+
+            {/* Doctor Remarks */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-white to-orange-50/30 border-b border-gray-200/50">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">Doctor Remarks</h2>
+                  {!isEditingDocRemarks && (
+                    <button
+                      onClick={() => setIsEditingDocRemarks(true)}
+                      className="text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                      style={{ color: '#1C4B46' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#0F2B26';
+                        e.currentTarget.style.backgroundColor = '#E6F3F1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#1C4B46';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      {docRemarks ? 'Edit Remarks' : 'Add Remarks'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="p-6">
+                {isEditingDocRemarks ? (
+                  <div className="space-y-4">
+                    <textarea
+                      value={docRemarks}
+                      onChange={(e) => setDocRemarks(e.target.value)}
+                      placeholder="Enter doctor&apos;s remarks about this visit..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md resize-none"
+                      style={{ 
+                        '--tw-ring-color': '#1C4B46'
+                      } as React.CSSProperties}
+                    />
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleSaveDocRemarks}
+                        disabled={isSavingDocRemarks}
+                        className="text-white font-bold px-6 py-2 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                        style={{ backgroundColor: isSavingDocRemarks ? '#8DA7A3' : '#1C4B46' }}
+                        onMouseEnter={(e) => !isSavingDocRemarks && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSavingDocRemarks && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        {isSavingDocRemarks ? 'Saving...' : 'Save Remarks'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingDocRemarks(false);
+                          setDocRemarks(visit.docRemarks || '');
+                        }}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-6 py-2 rounded-xl transition-colors duration-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="min-h-[100px]">
+                    {docRemarks ? (
+                      <div>
+                        <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{docRemarks}</p>
+                        {visit.docRemarksAt && (
+                          <div className="mt-3 p-3 bg-orange-50 rounded-xl border border-orange-200">
+                            <p className="text-xs text-orange-700">
+                              Remarks added at: {formatTimestamp(
+                                visit.docRemarksAt && typeof visit.docRemarksAt === 'object' && 'toDate' in visit.docRemarksAt
+                                  ? visit.docRemarksAt.toDate()
+                                  : visit.docRemarksAt instanceof Date
+                                  ? visit.docRemarksAt
+                                  : null
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No doctor remarks added yet. Click &quot;Add Remarks&quot; to enter doctor&apos;s observations.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Right Column - Timeline */}
@@ -1084,5 +1282,20 @@ export default function VisitDetailsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VisitDetailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading visit details...</p>
+        </div>
+      </div>
+    }>
+      <VisitDetailsContent />
+    </Suspense>
   );
 }

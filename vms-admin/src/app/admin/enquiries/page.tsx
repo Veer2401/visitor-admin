@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -49,7 +49,7 @@ const initialFormData: EnquiryFormData = {
   status: 'pending'
 };
 
-export default function EnquiriesPage() {
+function EnquiriesPageContent() {
   const [enquiries, setEnquiries] = useState<EditingEnquiry[]>([]);
   const [filteredEnquiries, setFilteredEnquiries] = useState<EditingEnquiry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -478,7 +478,7 @@ export default function EnquiriesPage() {
     try {
       // Check if status is changing to pending
       const currentEnquiry = enquiries.find(e => e.id === enquiryId);
-      const updateFields: Partial<Enquiry> & { updatedAt: any; userId: string } = {
+      const updateFields: Partial<Enquiry> & { updatedAt: ReturnType<typeof serverTimestamp>; userId: string } = {
         ...updatedData,
         updatedAt: serverTimestamp(),
         userId: user.uid,
@@ -1139,6 +1139,21 @@ export default function EnquiriesPage() {
         />
       )}
     </>
+  );
+}
+
+export default function EnquiriesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading enquiries...</p>
+        </div>
+      </div>
+    }>
+      <EnquiriesPageContent />
+    </Suspense>
   );
 }
 

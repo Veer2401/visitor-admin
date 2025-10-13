@@ -643,7 +643,7 @@ export default function AnalyticsPage() {
                 <div className="p-6">
                   <div className="space-y-3">
                     {(activeTab === 'visits' ? analyticsData.lastVisitedPatients : analyticsData.frequentVisitors)
-                      .map((item: any, index: number) => (
+                      .map((item: { name: string; date?: string; count?: number }, index: number) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-xl">
                         <div className="flex items-center">
                           {activeTab === 'enquiries' && (
