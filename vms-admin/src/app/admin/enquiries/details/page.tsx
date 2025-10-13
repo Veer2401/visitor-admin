@@ -1173,7 +1173,7 @@ export default function EnquiryDetailsPage() {
                               <p className="text-sm font-medium text-gray-900">{event.title}</p>
                               <p className="mt-0.5 text-sm text-gray-500">{event.description}</p>
                               {event.timestamp && (
-                                <p className="mt-0.5 text-xs text-gray-400">{formatTimestamp(event.timestamp)}</p>
+                                <p className="mt-0.5 text-xs text-black">{formatTimestamp(event.timestamp)}</p>
                               )}
                             </div>
                           </div>
