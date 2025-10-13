@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users with specific email addresses
+    function isAuthorizedUser() {
+      return request.auth != null && 
+        request.auth.token.email in [
+          'veerharischandrakar@gmail.com',
+          'ganesh.khandekar@kalpavrukshacare.com',
+          'punesatararoad@kalpavrukshacare.com',
+          'info.kalpavruksha.care@gmail.com'
+        ];
+    }
+    
+    // Visits collection
+    match /visits/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Enquiries collection
+    match /enquiries/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Doctors collection
+    match /doctors/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Staff collection
+    match /staff/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Users collection
+    match /users/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Branches collection
+    match /branches/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+    
+    // Visitors collection
+    match /visitors/{document} {
+      allow read, write: if isAuthorizedUser();
+    }
+  }
+}
