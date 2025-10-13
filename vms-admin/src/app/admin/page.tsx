@@ -197,8 +197,7 @@ export default function AdminPage() {
       const authorizedEmails = [
         'veerharischandrakar@gmail.com',
         'ganesh.khandekar@kalpavrukshacare.com',
-        'punesatararoad@kalpavrukshacare.com',
-        'info.kalpavruksha.care@gmail.com'
+        'punesatararoad@kalpavrukshacare.com'
       ];
       
       // Check if user email is authorized
