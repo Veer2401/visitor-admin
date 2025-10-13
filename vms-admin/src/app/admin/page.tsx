@@ -630,9 +630,9 @@ export default function AdminPage() {
     } catch (error: unknown) {
       console.error('Sign in failed:', error);
       
-      // Show specific error message for unauthorized emails
+      // Show simple error message for unauthorized emails
       if (error instanceof Error && error.message && error.message.includes('Unauthorized email')) {
-        alert('Access Denied: Only authorized admin emails (info.kalpavruksha.care@gmail.com and veerharischandrakar@gmail.com) are allowed to access this dashboard.');
+        alert('Cannot sign in');
       } else {
         alert('Sign in failed. Please try again.');
       }
