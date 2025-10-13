@@ -1581,7 +1581,7 @@ function VisitRow({ visit, index, onEdit, onSave, onCancel, onDelete, onStatusCh
           </button>
           <button
             onClick={() => onDelete(visit.id)}
-            className="text-red-600 hover:text-red-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+            className="text-red-600 hover:text-red-900 text-sm font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors hidden"
           >
             Delete
           </button>
