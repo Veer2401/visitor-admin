@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd vms-admin && npm install && npm run build",
-  "outputDirectory": "vms-admin/.next",
-  "framework": "nextjs",
-  "installCommand": "cd vms-admin && npm install"
-}
