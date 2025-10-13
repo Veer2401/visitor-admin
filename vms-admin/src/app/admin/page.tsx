@@ -193,6 +193,21 @@ export default function AdminPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((user) => {
+      // Define authorized emails
+      const authorizedEmails = [
+        'info.kalpavruksha.care@gmail.com',
+        'veerharischandrakar@gmail.com'
+      ];
+      
+      // Check if user email is authorized
+      if (user && (!user.email || !authorizedEmails.includes(user.email))) {
+        // Sign out unauthorized user
+        signOutUser().catch(console.error);
+        setUser(null);
+        setAuthLoading(false);
+        return;
+      }
+      
       setUser(user);
       setAuthLoading(false);
       if (user) {
@@ -614,7 +629,13 @@ export default function AdminPage() {
       await signInWithGoogle();
     } catch (error: unknown) {
       console.error('Sign in failed:', error);
-      alert('Sign in failed. Please try again.');
+      
+      // Show specific error message for unauthorized emails
+      if (error instanceof Error && error.message && error.message.includes('Unauthorized email')) {
+        alert('Access Denied: Only authorized admin emails (info.kalpavruksha.care@gmail.com and veerharischandrakar@gmail.com) are allowed to access this dashboard.');
+      } else {
+        alert('Sign in failed. Please try again.');
+      }
     }
   };
   const handleSignOut = async () => {
@@ -676,7 +697,8 @@ export default function AdminPage() {
               </button>
               
               <div className="mt-8 text-sm text-gray-500 space-y-1">
-                <p>Sign in with your Google account to access the dashboard.</p>
+                <p>Only authorized administrator emails can access this dashboard.</p>
+                <p>Contact the system administrator if you need access.</p>
               </div>
             </div>
           </div>

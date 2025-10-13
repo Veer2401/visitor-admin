@@ -40,6 +40,21 @@ export const signInWithGoogle = async () => {
   
   try {
     const result = await signInWithPopup(auth, provider);
+    
+    // Define authorized emails
+    const authorizedEmails = [
+      'info.kalpavruksha.care@gmail.com',
+      'veerharischandrakar@gmail.com'
+    ];
+    
+    // Check if the email is authorized
+    const userEmail = result.user.email;
+    if (!userEmail || !authorizedEmails.includes(userEmail)) {
+      // Sign out the unauthorized user
+      await signOut(auth);
+      throw new Error('Unauthorized email. Only authorized admin emails are allowed to access this admin panel.');
+    }
+    
     return result.user;
   } catch (error) {
     console.error('Error signing in with Google:', error);
