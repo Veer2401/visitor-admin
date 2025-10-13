@@ -27,7 +27,11 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "optionalDependencies": {
+    "@next/swc-linux-x64-gnu": "15.5.4",
     "firebase-admin": "^12.0.0"
   }
 }
