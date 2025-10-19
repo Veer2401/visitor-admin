@@ -438,6 +438,36 @@ function EnquiryDetailsPageContent() {
       });
     }
 
+    // 3.5. Doctor assigned (if assigned)
+    if (enquiry.assignedDoctor) {
+      timeline.push({
+        id: 'doctor_assigned',
+        title: 'Doctor Assigned',
+        description: `Assigned to ${enquiry.assignedDoctor}`,
+        timestamp: enquiry.assignedDoctorAt ? 
+          (typeof enquiry.assignedDoctorAt === 'object' && 'toDate' in enquiry.assignedDoctorAt ? 
+            enquiry.assignedDoctorAt.toDate() : 
+            enquiry.assignedDoctorAt instanceof Date ? enquiry.assignedDoctorAt : null
+          ) : null,
+        status: 'completed'
+      });
+    }
+
+    // 3.6. Doctor remarks (if provided)
+    if (enquiry.docRemarks) {
+      timeline.push({
+        id: 'doctor_remarks',
+        title: 'Doctor Remarks',
+        description: `${enquiry.docRemarks}`,
+        timestamp: enquiry.docRemarksAt ? 
+          (typeof enquiry.docRemarksAt === 'object' && 'toDate' in enquiry.docRemarksAt ? 
+            enquiry.docRemarksAt.toDate() : 
+            enquiry.docRemarksAt instanceof Date ? enquiry.docRemarksAt : null
+          ) : null,
+        status: 'completed'
+      });
+    }
+
     // 4. Progress status events
     if (enquiry.status === 'pending') {
       timeline.push({
