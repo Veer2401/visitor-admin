@@ -159,15 +159,20 @@ function VisitDetailsContent() {
       status: 'completed'
     });
 
-    const getActorName = (updaterEmail?: string | null, currentUser?: User | null) => {
+    const getActorDisplayName = (updaterEmail?: string | null, currentUser?: User | null) => {
       // Prefer current signed-in user's displayName if they match the updaterEmail
       if (currentUser && updaterEmail && currentUser.email === updaterEmail) {
-        const name = currentUser.displayName || currentUser.email || '';
-        return name.split(' ')[0] || name;
+        const name = currentUser.displayName || '';
+        if (name && name.trim().length > 0) return name;
       }
 
+      // Derive readable name from the email local-part (never show full email)
       if (updaterEmail) {
-        return updaterEmail.split('@')[0];
+        const local = updaterEmail.split('@')[0] || '';
+        const parts = local.split(/[_\.\-]+/).filter(Boolean);
+        if (parts.length > 0) {
+          return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        }
       }
 
       return 'Unknown';
@@ -175,11 +180,10 @@ function VisitDetailsContent() {
 
     // 2. Attended by staff (if assigned)
     if (visit.attendedBy) {
-      const actor = getActorName(visit.userEmail || null, user);
       timeline.push({
         id: 'attended',
         title: 'Attended by Staff',
-        description: `${actor}: ${visit.attendedBy}`,
+        description: `${visit.attendedBy}`,
         timestamp: visit.attendedAt ? 
           (typeof visit.attendedAt === 'object' && 'toDate' in visit.attendedAt ? 
             visit.attendedAt.toDate() : 
@@ -191,11 +195,10 @@ function VisitDetailsContent() {
 
     // 3. Doctor assigned (if assigned)
     if (visit.assignedDoctor) {
-      const actor = getActorName(visit.userEmail || null, user);
       timeline.push({
         id: 'doctor_assigned',  
         title: 'Doctor Assigned',
-        description: `${actor}: Assigned to ${visit.assignedDoctor}`,
+        description: `Assigned to ${visit.assignedDoctor}`,
         timestamp: visit.assignedDoctorAt ? 
           (typeof visit.assignedDoctorAt === 'object' && 'toDate' in visit.assignedDoctorAt ? 
             visit.assignedDoctorAt.toDate() : 
@@ -207,11 +210,10 @@ function VisitDetailsContent() {
 
     // 3.5. Doctor remarks (if provided)
     if (visit.docRemarks) {
-      const actor = getActorName(visit.userEmail || null, user);
       timeline.push({
         id: 'doctor_remarks',
         title: 'Doctor Remarks',
-        description: `${actor}: ${visit.docRemarks}`,
+        description: `${visit.docRemarks}`,
         timestamp: visit.docRemarksAt ? 
           (typeof visit.docRemarksAt === 'object' && 'toDate' in visit.docRemarksAt ? 
             visit.docRemarksAt.toDate() : 
@@ -223,7 +225,7 @@ function VisitDetailsContent() {
 
     // 4. Purpose of visit (if details provided)
     if (visit.visitDetails) {
-      const actor = getActorName(visit.userEmail || null, user);
+      const actor = getActorDisplayName(visit.userEmail || null, user);
       timeline.push({
         id: 'purpose',
         title: 'Purpose of Visit',

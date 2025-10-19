@@ -391,15 +391,20 @@ function EnquiryDetailsPageContent() {
     }
   };
 
-  const getActorName = (updaterEmail?: string | null, currentUser?: User | null) => {
+  const getActorDisplayName = (updaterEmail?: string | null, currentUser?: User | null) => {
     // Prefer current signed-in user's displayName if they match the updaterEmail
     if (currentUser && updaterEmail && currentUser.email === updaterEmail) {
-      const name = currentUser.displayName || currentUser.email || '';
-      return name.split(' ')[0] || name;
+      const name = currentUser.displayName || '';
+      if (name && name.trim().length > 0) return name;
     }
 
+    // Derive a readable name from the email local-part (never show full email)
     if (updaterEmail) {
-      return updaterEmail.split('@')[0];
+      const local = updaterEmail.split('@')[0] || '';
+      const parts = local.split(/[_\.\-]+/).filter(Boolean);
+      if (parts.length > 0) {
+        return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      }
     }
 
     return 'Unknown';
@@ -439,7 +444,7 @@ function EnquiryDetailsPageContent() {
 
     // 3. Enquiry type and details (if available)
     if (enquiry.enquiryDetails) {
-  const actor = getActorName(enquiry.userEmail || null, currentUser);
+      const actor = getActorDisplayName(enquiry.userEmail || null, currentUser);
       timeline.push({
         id: 'enquiry_type',
         title: 'Enquiry Type',
@@ -470,11 +475,10 @@ function EnquiryDetailsPageContent() {
 
     // 3.6. Doctor remarks (if provided)
     if (enquiry.docRemarks) {
-  const actor = getActorName(enquiry.userEmail || null, currentUser);
       timeline.push({
         id: 'doctor_remarks',
         title: 'Doctor Remarks',
-        description: `${actor}: ${enquiry.docRemarks}`,
+        description: `${enquiry.docRemarks}`,
         timestamp: enquiry.docRemarksAt ? 
           (typeof enquiry.docRemarksAt === 'object' && 'toDate' in enquiry.docRemarksAt ? 
             enquiry.docRemarksAt.toDate() : 
