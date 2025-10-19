@@ -391,7 +391,21 @@ function EnquiryDetailsPageContent() {
     }
   };
 
-  const generateTimeline = (enquiry: Enquiry): TimelineEvent[] => {
+  const getActorName = (updaterEmail?: string | null, currentUser?: User | null) => {
+    // Prefer current signed-in user's displayName if they match the updaterEmail
+    if (currentUser && updaterEmail && currentUser.email === updaterEmail) {
+      const name = currentUser.displayName || currentUser.email || '';
+      return name.split(' ')[0] || name;
+    }
+
+    if (updaterEmail) {
+      return updaterEmail.split('@')[0];
+    }
+
+    return 'Unknown';
+  };
+
+  const generateTimeline = (enquiry: Enquiry, currentUser: User | null): TimelineEvent[] => {
     if (!enquiry) return [];
 
     const timeline: TimelineEvent[] = [];
@@ -425,10 +439,11 @@ function EnquiryDetailsPageContent() {
 
     // 3. Enquiry type and details (if available)
     if (enquiry.enquiryDetails) {
+  const actor = getActorName(enquiry.userEmail || null, currentUser);
       timeline.push({
         id: 'enquiry_type',
         title: 'Enquiry Type',
-        description: `${enquiry.enquiryDetails}`,
+        description: `${actor}: ${enquiry.enquiryDetails}`,
         timestamp: enquiry.updatedAt ? 
           (typeof enquiry.updatedAt === 'object' && 'toDate' in enquiry.updatedAt ? 
             enquiry.updatedAt.toDate() : 
@@ -455,10 +470,11 @@ function EnquiryDetailsPageContent() {
 
     // 3.6. Doctor remarks (if provided)
     if (enquiry.docRemarks) {
+  const actor = getActorName(enquiry.userEmail || null, currentUser);
       timeline.push({
         id: 'doctor_remarks',
         title: 'Doctor Remarks',
-        description: `${enquiry.docRemarks}`,
+        description: `${actor}: ${enquiry.docRemarks}`,
         timestamp: enquiry.docRemarksAt ? 
           (typeof enquiry.docRemarksAt === 'object' && 'toDate' in enquiry.docRemarksAt ? 
             enquiry.docRemarksAt.toDate() : 
@@ -553,7 +569,7 @@ function EnquiryDetailsPageContent() {
     }
 
     // Add reminder timeline event if active
-    if (enquiry.reminderScheduledAt && enquiry.reminderDuration) {
+  if (enquiry.reminderScheduledAt && enquiry.reminderDuration) {
       const reminderTime = typeof enquiry.reminderScheduledAt === 'object' && 'toDate' in enquiry.reminderScheduledAt
         ? enquiry.reminderScheduledAt.toDate()
         : enquiry.reminderScheduledAt instanceof Date
@@ -905,7 +921,7 @@ function EnquiryDetailsPageContent() {
     );
   }
 
-  const timeline = generateTimeline(enquiry);
+  const timeline = generateTimeline(enquiry, user);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
