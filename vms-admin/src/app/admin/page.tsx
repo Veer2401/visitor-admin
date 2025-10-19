@@ -454,7 +454,7 @@ export default function AdminPage() {
 
     setFilteredVisits(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [visits, searchQuery, statusFilter, dateFilter]);
+  }, [visits, searchQuery, statusFilter, dateFilter, dateRangeStart, dateRangeEnd, rangeMode]);
 
   // Pagination logic
   useEffect(() => {

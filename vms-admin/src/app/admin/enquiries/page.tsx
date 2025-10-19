@@ -409,7 +409,7 @@ function EnquiriesPageContent() {
     }
 
     setFilteredEnquiries(filtered);
-  }, [enquiries, searchQuery, statusFilter, dateFilter]);
+  }, [enquiries, searchQuery, statusFilter, dateFilter, dateRangeStart, dateRangeEnd, rangeMode]);
 
   // Handle highlighting enquiry from notifications
   useEffect(() => {
