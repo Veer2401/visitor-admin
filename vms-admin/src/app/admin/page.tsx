@@ -69,6 +69,9 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out'>('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [rangeMode, setRangeMode] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -160,7 +163,41 @@ export default function AdminPage() {
 
   const handleDateSelect = (date: Date) => {
     const dateString = formatDate(date);
-    setDateFilter(dateString);
+
+    if (rangeMode) {
+      // If no start set, set start. If start exists and no end, set end (swap if needed).
+      if (!dateRangeStart) {
+        setDateRangeStart(dateString);
+        setDateRangeEnd('');
+        return;
+      }
+
+      if (!dateRangeEnd) {
+        // Ensure start <= end
+        if (dateString < dateRangeStart) {
+          setDateRangeEnd(dateRangeStart);
+          setDateRangeStart(dateString);
+        } else {
+          setDateRangeEnd(dateString);
+        }
+
+        // Close picker after completing range selection
+        setShowDatePicker(false);
+        return;
+      }
+
+      // If both exist, reset start to new selection
+      setDateRangeStart(dateString);
+      setDateRangeEnd('');
+      return;
+    }
+
+    // Single date mode
+    const single = dateString;
+    setDateFilter(single);
+    // Clear any range if present
+    setDateRangeStart('');
+    setDateRangeEnd('');
     setShowDatePicker(false);
   };
 
@@ -177,6 +214,21 @@ export default function AdminPage() {
   };
 
   const isDateSelected = (date: Date) => {
+    // Range mode check
+    if (rangeMode && dateRangeStart && dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      const end = new Date(dateRangeEnd + 'T00:00:00');
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return d.getTime() >= new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+        && d.getTime() <= new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+    }
+
+    // Range mode start-only highlight
+    if (rangeMode && dateRangeStart && !dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      return date.getFullYear() === start.getFullYear() && date.getMonth() === start.getMonth() && date.getDate() === start.getDate();
+    }
+
     if (!dateFilter) return false;
     const selectedDate = new Date(dateFilter + 'T00:00:00');
     return date.getFullYear() === selectedDate.getFullYear() &&
@@ -356,8 +408,29 @@ export default function AdminPage() {
       filtered = filtered.filter(visit => visit.status === statusFilter);
     }
 
-    // Date filter
-    if (dateFilter) {
+    // Date filter (single date or range)
+    if (rangeMode && dateRangeStart && dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      const end = new Date(dateRangeEnd + 'T00:00:00');
+      const startLocal = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+      const endLocal = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+
+      filtered = filtered.filter(visit => {
+        if (!visit.date) return false;
+
+        let visitDate: Date;
+        if (typeof visit.date === 'object' && 'toDate' in visit.date && typeof visit.date.toDate === 'function') {
+          visitDate = visit.date.toDate();
+        } else if (visit.date instanceof Date) {
+          visitDate = visit.date;
+        } else {
+          return false;
+        }
+
+        const visitLocalDate = new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate()).getTime();
+        return visitLocalDate >= startLocal && visitLocalDate <= endLocal;
+      });
+    } else if (dateFilter) {
       const filterDate = new Date(dateFilter + 'T00:00:00'); // Ensure local date
       filtered = filtered.filter(visit => {
         if (!visit.date) return false;
@@ -621,6 +694,9 @@ export default function AdminPage() {
     setSearchQuery('');
     setStatusFilter('all');
     setDateFilter('');
+    setDateRangeStart('');
+    setDateRangeEnd('');
+    setRangeMode(false);
     setCurrentPage(1);
   };
 
@@ -1025,8 +1101,15 @@ export default function AdminPage() {
                       '--tw-ring-color': '#1C4B46'
                     } as React.CSSProperties}
                   >
-                    <span className={dateFilter ? 'text-gray-900' : 'text-gray-400'}>
-                      {dateFilter ? formatDisplayDate(dateFilter) : 'Select date...'}
+                    <span className={dateFilter || dateRangeStart ? 'text-gray-900' : 'text-gray-400'}>
+                      {rangeMode
+                        ? (dateRangeStart && dateRangeEnd
+                            ? `${formatDisplayDate(dateRangeStart)} → ${formatDisplayDate(dateRangeEnd)}`
+                            : dateRangeStart
+                              ? `${formatDisplayDate(dateRangeStart)} → ...`
+                              : 'Select date range...')
+                        : (dateFilter ? formatDisplayDate(dateFilter) : 'Select date...')
+                      }
                     </span>
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1034,6 +1117,20 @@ export default function AdminPage() {
                   </button>
                 </div>
                 
+                <div className="mt-2 flex items-center space-x-2">
+                  <label className="text-sm text-gray-600">Mode:</label>
+                  <button
+                    type="button"
+                    onClick={() => setRangeMode(false)}
+                    className={`px-3 py-1 rounded-full text-sm ${!rangeMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                  >Single</button>
+                  <button
+                    type="button"
+                    onClick={() => setRangeMode(true)}
+                    className={`px-3 py-1 rounded-full text-sm ${rangeMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                  >Range</button>
+                </div>
+
                 {showDatePicker && (
                   <>
                     {/* Backdrop */}
@@ -1086,7 +1183,7 @@ export default function AdminPage() {
                       </div>
                       
                       <div className="grid grid-cols-7 gap-1">
-                        {getDaysInMonth(currentMonth).map((dayInfo, index) => {
+              {getDaysInMonth(currentMonth).map((dayInfo, index) => {
                           const isSelected = isDateSelected(dayInfo.date);
                           const isTodayDate = isToday(dayInfo.date);
                           
@@ -1115,12 +1212,14 @@ export default function AdminPage() {
                       </div>
                       
                       {/* Clear button */}
-                      {dateFilter && (
+                      {(dateFilter || dateRangeStart) && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <button
                             type="button"
                             onClick={() => {
                               setDateFilter('');
+                              setDateRangeStart('');
+                              setDateRangeEnd('');
                               setShowDatePicker(false);
                             }}
                             className="w-full text-sm text-gray-600 hover:text-gray-800 py-1"
@@ -1190,7 +1289,7 @@ export default function AdminPage() {
                 )}
                 {dateFilter && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                    Date: {new Date(dateFilter).toLocaleDateString()}
+                    Date: {rangeMode && dateRangeStart && dateRangeEnd ? `${new Date(dateRangeStart).toLocaleDateString()} → ${new Date(dateRangeEnd).toLocaleDateString()}` : new Date(dateFilter).toLocaleDateString()}
                   </span>
                 )}
               </div>

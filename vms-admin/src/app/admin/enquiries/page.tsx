@@ -69,6 +69,9 @@ function EnquiriesPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [rangeMode, setRangeMode] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -155,7 +158,32 @@ function EnquiriesPageContent() {
 
   const handleDateSelect = (date: Date) => {
     const dateString = formatDate(date);
+    if (rangeMode) {
+      if (!dateRangeStart) {
+        setDateRangeStart(dateString);
+        setDateRangeEnd('');
+        return;
+      }
+
+      if (!dateRangeEnd) {
+        if (dateString < dateRangeStart) {
+          setDateRangeEnd(dateRangeStart);
+          setDateRangeStart(dateString);
+        } else {
+          setDateRangeEnd(dateString);
+        }
+        setShowDatePicker(false);
+        return;
+      }
+
+      setDateRangeStart(dateString);
+      setDateRangeEnd('');
+      return;
+    }
+
     setDateFilter(dateString);
+    setDateRangeStart('');
+    setDateRangeEnd('');
     setShowDatePicker(false);
   };
 
@@ -172,6 +200,19 @@ function EnquiriesPageContent() {
   };
 
   const isDateSelected = (date: Date) => {
+    if (rangeMode && dateRangeStart && dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      const end = new Date(dateRangeEnd + 'T00:00:00');
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return d.getTime() >= new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+        && d.getTime() <= new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+    }
+
+    if (rangeMode && dateRangeStart && !dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      return date.getFullYear() === start.getFullYear() && date.getMonth() === start.getMonth() && date.getDate() === start.getDate();
+    }
+
     if (!dateFilter) return false;
     const selectedDate = new Date(dateFilter + 'T00:00:00');
     return date.getFullYear() === selectedDate.getFullYear() &&
@@ -325,11 +366,15 @@ function EnquiriesPageContent() {
       filtered = filtered.filter(enquiry => enquiry.status === statusFilter);
     }
 
-    if (dateFilter) {
-      const filterDate = new Date(dateFilter + 'T00:00:00');
+    if (rangeMode && dateRangeStart && dateRangeEnd) {
+      const start = new Date(dateRangeStart + 'T00:00:00');
+      const end = new Date(dateRangeEnd + 'T00:00:00');
+      const startLocal = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+      const endLocal = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+
       filtered = filtered.filter(enquiry => {
         if (!enquiry.createdAt) return false;
-        
+
         let enquiryDate: Date;
         if (typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt && typeof enquiry.createdAt.toDate === 'function') {
           enquiryDate = enquiry.createdAt.toDate();
@@ -338,10 +383,27 @@ function EnquiriesPageContent() {
         } else {
           return false;
         }
-        
+
+        const enquiryLocalDate = new Date(enquiryDate.getFullYear(), enquiryDate.getMonth(), enquiryDate.getDate()).getTime();
+        return enquiryLocalDate >= startLocal && enquiryLocalDate <= endLocal;
+      });
+    } else if (dateFilter) {
+      const filterDate = new Date(dateFilter + 'T00:00:00');
+      filtered = filtered.filter(enquiry => {
+        if (!enquiry.createdAt) return false;
+
+        let enquiryDate: Date;
+        if (typeof enquiry.createdAt === 'object' && 'toDate' in enquiry.createdAt && typeof enquiry.createdAt.toDate === 'function') {
+          enquiryDate = enquiry.createdAt.toDate();
+        } else if (enquiry.createdAt instanceof Date) {
+          enquiryDate = enquiry.createdAt;
+        } else {
+          return false;
+        }
+
         const enquiryLocalDate = new Date(enquiryDate.getFullYear(), enquiryDate.getMonth(), enquiryDate.getDate());
         const filterLocalDate = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
-        
+
         return enquiryLocalDate.getTime() === filterLocalDate.getTime();
       });
     }
@@ -522,6 +584,9 @@ function EnquiriesPageContent() {
     setSearchQuery('');
     setStatusFilter('all');
     setDateFilter('');
+    setDateRangeStart('');
+    setDateRangeEnd('');
+    setRangeMode(false);
   };
 
   const handleSignIn = async () => {
@@ -893,14 +958,35 @@ function EnquiriesPageContent() {
                       '--tw-ring-color': '#1C4B46'
                     } as React.CSSProperties}
                   >
-                    <span className={dateFilter ? 'text-gray-900' : 'text-gray-400'}>
-                      {dateFilter ? formatDisplayDate(dateFilter) : 'Select date...'}
+                    <span className={dateFilter || dateRangeStart ? 'text-gray-900' : 'text-gray-400'}>
+                      {rangeMode
+                        ? (dateRangeStart && dateRangeEnd
+                            ? `${formatDisplayDate(dateRangeStart)} → ${formatDisplayDate(dateRangeEnd)}`
+                            : dateRangeStart
+                              ? `${formatDisplayDate(dateRangeStart)} → ...`
+                              : 'Select date range...')
+                        : (dateFilter ? formatDisplayDate(dateFilter) : 'Select date...')
+                      }
                     </span>
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </button>
                   
+                <div className="mt-2 flex items-center space-x-2">
+                  <label className="text-sm text-gray-600">Mode:</label>
+                  <button
+                    type="button"
+                    onClick={() => setRangeMode(false)}
+                    className={`px-3 py-1 rounded-full text-sm ${!rangeMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                  >Single</button>
+                  <button
+                    type="button"
+                    onClick={() => setRangeMode(true)}
+                    className={`px-3 py-1 rounded-full text-sm ${rangeMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                  >Range</button>
+                </div>
+
                   {showDatePicker && (
                     <>
                       {/* Backdrop */}
@@ -979,12 +1065,14 @@ function EnquiriesPageContent() {
                         })}
                       </div>
                       
-                      {dateFilter && (
+                      {(dateFilter || dateRangeStart) && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <button
                             type="button"
                             onClick={() => {
                               setDateFilter('');
+                              setDateRangeStart('');
+                              setDateRangeEnd('');
                               setShowDatePicker(false);
                             }}
                             className="w-full text-sm text-gray-600 hover:text-gray-800 py-1"
@@ -1051,7 +1139,7 @@ function EnquiriesPageContent() {
                 )}
                 {dateFilter && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                    Date: {new Date(dateFilter).toLocaleDateString()}
+                    Date: {rangeMode && dateRangeStart && dateRangeEnd ? `${new Date(dateRangeStart).toLocaleDateString()} → ${new Date(dateRangeEnd).toLocaleDateString()}` : new Date(dateFilter).toLocaleDateString()}
                   </span>
                 )}
               </div>
