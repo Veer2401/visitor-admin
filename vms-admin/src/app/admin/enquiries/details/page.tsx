@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { initFirebase, db, ENQUIRIES_COLLECTION, STAFF_COLLECTION } from '../../../../lib/firebase';
+import { initFirebase, db, ENQUIRIES_COLLECTION, STAFF_COLLECTION, DOCTORS_COLLECTION } from '../../../../lib/firebase';
 import { signInWithGoogle, signOutUser, onAuthStateChange } from '../../../../lib/auth';
 import {
   collection as col,
@@ -56,6 +56,12 @@ function EnquiryDetailsPageContent() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [showStaffDropdown, setShowStaffDropdown] = useState(false);
   const [isAssigningStaff, setIsAssigningStaff] = useState(false);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
+  const [isAssigningDoctor, setIsAssigningDoctor] = useState(false);
+  const [docRemarks, setDocRemarks] = useState('');
+  const [isEditingDocRemarks, setIsEditingDocRemarks] = useState(false);
+  const [isSavingDocRemarks, setIsSavingDocRemarks] = useState(false);
   const [isMarkingCompleted, setIsMarkingCompleted] = useState(false);
   const [showReminderExpiredPopup, setShowReminderExpiredPopup] = useState(false);
   const [expiredEnquiry, setExpiredEnquiry] = useState<Enquiry | null>(null);
@@ -138,7 +144,20 @@ function EnquiryDetailsPageContent() {
       console.error('Error fetching staff:', error);
     });
     
-    return () => unsubStaff();
+    // Fetch doctors as well
+    const doctorsQuery = query(col(db, DOCTORS_COLLECTION));
+    const unsubDoctors = onSnapshot(doctorsQuery, (snapshot) => {
+      const items: any[] = [];
+      snapshot.forEach((docSnap) => items.push({ id: docSnap.id, ...docSnap.data() }));
+      setDoctors(items);
+    }, (error) => {
+      console.error('Error fetching doctors:', error);
+    });
+    
+    return () => {
+      unsubStaff();
+      unsubDoctors();
+    };
   }, [user]);
 
   // Check for expired reminders periodically
@@ -251,6 +270,7 @@ function EnquiryDetailsPageContent() {
         const enquiryData = { id: doc.id, ...doc.data() } as Enquiry;
         setEnquiry(enquiryData);
         setEnquiryDetails(enquiryData.enquiryDetails || '');
+  setDocRemarks(enquiryData.docRemarks || '');
         
         // Check if this enquiry had an expired reminder on load/reload
         checkForExpiredReminderOnLoad(enquiryData);
@@ -677,6 +697,49 @@ function EnquiryDetailsPageContent() {
       alert('Failed to assign staff. Please try again.');
     }
     setIsAssigningStaff(false);
+  };
+
+  const handleAssignDoctor = async (doctorName: string) => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsAssigningDoctor(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        assignedDoctor: `Dr. ${doctorName}`,
+        assignedDoctorAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+
+      setShowDoctorDropdown(false);
+    } catch (error) {
+      console.error('Error assigning doctor:', error);
+      alert('Failed to assign doctor. Please try again.');
+    }
+    setIsAssigningDoctor(false);
+  };
+
+  const handleSaveDocRemarks = async () => {
+    if (!db || !enquiryId || !user || !enquiry) return;
+
+    setIsSavingDocRemarks(true);
+    try {
+      const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      await updateDoc(enquiryRef, {
+        docRemarks: docRemarks,
+        docRemarksAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email || ''
+      });
+      setIsEditingDocRemarks(false);
+    } catch (error) {
+      console.error('Error saving doctor remarks:', error);
+      alert('Failed to save doctor remarks. Please try again.');
+    }
+    setIsSavingDocRemarks(false);
   };
 
   const handleMarkAsCompleted = async () => {

@@ -77,6 +77,10 @@ export interface Enquiry {
   pendingSince?: Timestamp | FieldValue | Date | null; // when the enquiry became pending
   lastNotificationShown?: Timestamp | FieldValue | Date | null; // when the last 72h notification was shown
   assignedStaff?: string; // Name of assigned staff member
+  assignedDoctor?: string; // Name of doctor assigned for the enquiry
+  assignedDoctorAt?: Timestamp | FieldValue | Date | null; // When doctor was assigned
+  docRemarks?: string; // Doctor's remarks about the enquiry
+  docRemarksAt?: Timestamp | FieldValue | Date | null; // When doctor remarks were added
 }
 
 export interface EnquiryFormData {
