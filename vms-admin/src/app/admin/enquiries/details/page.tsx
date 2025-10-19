@@ -1065,6 +1065,54 @@ function EnquiryDetailsPageContent() {
                           )}
                         </div>
                       )}
+                      {/* Always show Assign Doctor button for pending/in_progress enquiries */}
+                      {enquiry.status && ['pending', 'in_progress'].includes(enquiry.status) && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                            disabled={isAssigningDoctor}
+                            className={`ml-2 font-bold px-3 py-1 rounded-lg text-xs transition-colors duration-200 disabled:opacity-50 flex items-center space-x-1 ${
+                              enquiry.assignedDoctor
+                                ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{enquiry.assignedDoctor ? 'Change Doctor' : 'Assign Doctor'}</span>
+                          </button>
+
+                          {showDoctorDropdown && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowDoctorDropdown(false)}
+                              />
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <div className="py-1">
+                                  {doctors.length === 0 ? (
+                                    <div className="px-4 py-2 text-sm text-gray-500">
+                                      No doctors available
+                                    </div>
+                                  ) : (
+                                    doctors.map((doctor) => (
+                                      <button
+                                        key={doctor.id}
+                                        onClick={() => handleAssignDoctor(doctor.doctorName || 'Unknown Doctor')}
+                                        disabled={isAssigningDoctor}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200 disabled:opacity-50"
+                                      >
+                                        {doctor.doctorName || 'Unknown Doctor'}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1185,6 +1233,95 @@ function EnquiryDetailsPageContent() {
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500 italic">No enquiry details added yet. Click &quot;Add Details&quot; to enter custom details.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Doctor Remarks */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-white to-orange-50/30 border-b border-gray-200/50">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">Doctor Remarks</h2>
+                  {!isEditingDocRemarks && (
+                    <button
+                      onClick={() => setIsEditingDocRemarks(true)}
+                      className="text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                      style={{ color: '#1C4B46' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#0F2B26';
+                        e.currentTarget.style.backgroundColor = '#E6F3F1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#1C4B46';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      {docRemarks ? 'Edit Remarks' : 'Add Remarks'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="p-6">
+                {isEditingDocRemarks ? (
+                  <div className="space-y-4">
+                    <textarea
+                      value={docRemarks}
+                      onChange={(e) => setDocRemarks(e.target.value)}
+                      placeholder="Enter doctor's remarks about this enquiry..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300/50 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-500 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 hover:shadow-md resize-none"
+                      style={{ 
+                        '--tw-ring-color': '#1C4B46'
+                      } as React.CSSProperties}
+                    />
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleSaveDocRemarks}
+                        disabled={isSavingDocRemarks}
+                        className="text-white font-bold px-6 py-2 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                        style={{ backgroundColor: isSavingDocRemarks ? '#8DA7A3' : '#1C4B46' }}
+                        onMouseEnter={(e) => !isSavingDocRemarks && (e.currentTarget.style.backgroundColor = '#164037')}
+                        onMouseLeave={(e) => !isSavingDocRemarks && (e.currentTarget.style.backgroundColor = '#1C4B46')}
+                      >
+                        {isSavingDocRemarks ? 'Saving...' : 'Save Remarks'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingDocRemarks(false);
+                          setDocRemarks(enquiry.docRemarks || '');
+                        }}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-6 py-2 rounded-xl transition-colors duration-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="min-h-[100px]">
+                    {docRemarks ? (
+                      <div>
+                        <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">{docRemarks}</p>
+                        {enquiry.docRemarksAt && (
+                          <div className="mt-3 p-3 bg-orange-50 rounded-xl border border-orange-200">
+                            <p className="text-xs text-orange-700">
+                              Remarks added at: {formatTimestamp(
+                                enquiry.docRemarksAt && typeof enquiry.docRemarksAt === 'object' && 'toDate' in enquiry.docRemarksAt
+                                  ? enquiry.docRemarksAt.toDate()
+                                  : enquiry.docRemarksAt instanceof Date
+                                  ? enquiry.docRemarksAt
+                                  : null
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No doctor remarks added yet. Click &quot;Add Remarks&quot; to enter doctor's observations.</p>
                     )}
                   </div>
                 )}
