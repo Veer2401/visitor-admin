@@ -23,6 +23,12 @@ export interface Visit {
   assignedDoctorAt?: Timestamp | FieldValue | Date | null; // When doctor was assigned
   docRemarks?: string; // Doctor's remarks about the visit
   docRemarksAt?: Timestamp | FieldValue | Date | null; // When doctor remarks were added
+  visitDetailsHistory?: Array<{
+    text?: string;
+    at?: Timestamp | FieldValue | Date | null;
+    byName?: string;
+    byEmail?: string;
+  }>;
   visitorCheckOutTime?: Timestamp | FieldValue | Date | null; // When visitor left (initial checkout)
   adminCheckOutTime?: Timestamp | FieldValue | Date | null; // When admin finalized the checkout
   adminCheckInTime?: Timestamp | FieldValue | Date | null; // When admin checked visitor back in
@@ -81,6 +87,12 @@ export interface Enquiry {
   assignedDoctorAt?: Timestamp | FieldValue | Date | null; // When doctor was assigned
   docRemarks?: string; // Doctor's remarks about the enquiry
   docRemarksAt?: Timestamp | FieldValue | Date | null; // When doctor remarks were added
+  enquiryDetailsHistory?: Array<{
+    text?: string;
+    at?: Timestamp | FieldValue | Date | null;
+    byName?: string;
+    byEmail?: string;
+  }>;
 }
 
 export interface EnquiryFormData {

@@ -14,6 +14,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  arrayUnion,
   serverTimestamp,
   DocumentData,
   DocumentSnapshot,
@@ -458,6 +459,27 @@ function EnquiryDetailsPageContent() {
       });
     }
 
+    // Add enquiry details history entries (if any) as additional timeline items
+    if (enquiry.enquiryDetailsHistory && Array.isArray(enquiry.enquiryDetailsHistory)) {
+      // Ensure chronological order (oldest first)
+      type HistoryEntry = { text: string; at: Date | null; byName: string };
+      const history: HistoryEntry[] = enquiry.enquiryDetailsHistory.slice().map((h): HistoryEntry => ({
+        text: h.text || '',
+        at: h.at && typeof h.at === 'object' && 'toDate' in h.at ? h.at.toDate() : (h.at instanceof Date ? h.at : null),
+        byName: h.byName || getActorDisplayName(h.byEmail || null, currentUser)
+      }));
+
+      history.forEach((h: HistoryEntry, idx: number) => {
+        timeline.push({
+          id: `enquiry_history_${idx}`,
+          title: 'Enquiry Details (edited)',
+          description: `${h.byName}: ${h.text}`,
+          timestamp: h.at,
+          status: 'completed'
+        });
+      });
+    }
+
     // 3.5. Doctor assigned (if assigned)
     if (enquiry.assignedDoctor) {
       timeline.push({
@@ -625,11 +647,14 @@ function EnquiryDetailsPageContent() {
     setIsSavingDetails(true);
     try {
       const enquiryRef = doc(db, ENQUIRIES_COLLECTION, enquiryId);
+      // append a history entry and update current details
+      const actorName = (user.displayName && user.displayName.trim()) ? user.displayName : (user.email ? user.email.split('@')[0] : 'Unknown');
       await updateDoc(enquiryRef, {
         enquiryDetails: enquiryDetails,
         updatedAt: serverTimestamp(),
         userId: user.uid,
-        userEmail: user.email || ''
+        userEmail: user.email || '',
+        enquiryDetailsHistory: arrayUnion({ text: enquiryDetails, at: serverTimestamp(), byName: actorName, byEmail: user.email || '' })
       });
       setIsEditingDetails(false);
     } catch (error) {

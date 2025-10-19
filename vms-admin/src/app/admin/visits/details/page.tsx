@@ -12,6 +12,7 @@ import {
   query,
   doc,
   updateDoc,
+  arrayUnion,
   serverTimestamp
 } from 'firebase/firestore';
 import type { Visit, Staff, Doctor } from '../../../../lib/types';
@@ -239,6 +240,26 @@ function VisitDetailsContent() {
       });
     }
 
+    // Add visit details history entries (if any)
+    if (visit.visitDetailsHistory && Array.isArray(visit.visitDetailsHistory)) {
+      type HistoryEntry = { text: string; at: Date | null; byName: string };
+      const history: HistoryEntry[] = visit.visitDetailsHistory.slice().map((h): HistoryEntry => ({
+        text: h.text || '',
+        at: h.at && typeof h.at === 'object' && 'toDate' in h.at ? h.at.toDate() : (h.at instanceof Date ? h.at : null),
+        byName: h.byName || getActorDisplayName(h.byEmail || null, user)
+      }));
+
+      history.forEach((h: HistoryEntry, idx: number) => {
+        timeline.push({
+          id: `visit_history_${idx}`,
+          title: 'Visit Details (edited)',
+          description: `${h.byName}: ${h.text}`,
+          timestamp: h.at,
+          status: 'completed'
+        });
+      });
+    }
+
     // 5. Current status or checkout/checkin events
     // Determine display based on admin checkout status, not visitor checkout
     if (visit.adminCheckOutTime) {
@@ -319,11 +340,13 @@ function VisitDetailsContent() {
     setIsSavingDetails(true);
     try {
       const visitRef = doc(db, VISITS_COLLECTION, visitId);
+      const actorName = (user.displayName && user.displayName.trim()) ? user.displayName : (user.email ? user.email.split('@')[0] : 'Unknown');
       await updateDoc(visitRef, {
         visitDetails: visitDetails,
         updatedAt: serverTimestamp(),
         userId: user.uid,
-        userEmail: user.email || ''
+        userEmail: user.email || '',
+        visitDetailsHistory: arrayUnion({ text: visitDetails, at: serverTimestamp(), byName: actorName, byEmail: user.email || '' })
       });
       setIsEditingDetails(false);
       setShowDoctorDropdown(false); // Close doctor dropdown after saving
