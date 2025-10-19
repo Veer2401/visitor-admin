@@ -8,7 +8,10 @@ service cloud.firestore {
           'veerharischandrakar@gmail.com',
           'ganesh.khandekar@kalpavrukshacare.com',
           'punesatararoad@kalpavrukshacare.com',
-          'info.kalpavruksha.care@gmail.com'
+            'info.kalpavruksha.care@gmail.com',
+            'sahkarnagar.kalpavrushka@gmail.com',
+            'baner.kalpavrushka@gmail.com'
+            , 'imganesha.gk@gmail.com'
         ];
     }
     

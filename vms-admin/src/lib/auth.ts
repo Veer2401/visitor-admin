@@ -44,7 +44,10 @@ export const signInWithGoogle = async () => {
     // Define authorized emails
     const authorizedEmails = [
       'info.kalpavruksha.care@gmail.com',
-      'veerharischandrakar@gmail.com'
+      'veerharischandrakar@gmail.com',
+      'sahkarnagar.kalpavrushka@gmail.com',
+      'baner.kalpavrushka@gmail.com',
+      'imganesha.gk@gmail.com'
     ];
     
     // Check if the email is authorized

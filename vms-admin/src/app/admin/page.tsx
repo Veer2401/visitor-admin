@@ -250,8 +250,12 @@ export default function AdminPage() {
       // Define authorized emails
       const authorizedEmails = [
         'info.kalpavruksha.care@gmail.com',
-        'veerharischandrakar@gmail.com'
+        'veerharischandrakar@gmail.com',
+        'sahkarnagar.kalpavrushka@gmail.com',
+        'baner.kalpavrushka@gmail.com'
       ];
+      // Added additional authorized admin emails
+      authorizedEmails.push('imganesha.gk@gmail.com');
       
       // Check if user email is authorized
       if (user && (!user.email || !authorizedEmails.includes(user.email))) {

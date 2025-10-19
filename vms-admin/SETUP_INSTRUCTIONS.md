@@ -65,3 +65,6 @@ Only these emails can access the admin dashboard:
 - ganesh.khandekar@kalpavrukshacare.com
 - punesatararoad@kalpavrukshacare.com
 - info.kalpavruksha.care@gmail.com
+ - sahkarnagar.kalpavrushka@gmail.com
+ - baner.kalpavrushka@gmail.com
+ - imganesha.gk@gmail.com
