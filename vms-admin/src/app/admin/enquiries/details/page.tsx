@@ -463,7 +463,7 @@ function EnquiryDetailsPageContent() {
     if (enquiry.enquiryDetailsHistory && Array.isArray(enquiry.enquiryDetailsHistory)) {
       // Ensure chronological order (oldest first)
       type HistoryEntry = { text: string; at: Date | null; byName: string };
-      const history: HistoryEntry[] = enquiry.enquiryDetailsHistory.slice().map((h): HistoryEntry => ({
+      const history: HistoryEntry[] = enquiry.enquiryDetailsHistory.slice().map((h: any): HistoryEntry => ({
         text: h.text || '',
         at: h.at && typeof h.at === 'object' && 'toDate' in h.at ? h.at.toDate() : (h.at instanceof Date ? h.at : null),
         byName: h.byName || getActorDisplayName(h.byEmail || null, currentUser)
