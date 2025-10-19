@@ -13,7 +13,8 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  serverTimestamp
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import type { Visit, Staff, Doctor } from '../../../../lib/types';
 import type { User } from 'firebase/auth';
@@ -346,7 +347,8 @@ function VisitDetailsContent() {
         updatedAt: serverTimestamp(),
         userId: user.uid,
         userEmail: user.email || '',
-        visitDetailsHistory: arrayUnion({ text: visitDetails, at: serverTimestamp(), byName: actorName, byEmail: user.email || '' })
+        // serverTimestamp cannot be nested inside arrayUnion in client SDK; use client Timestamp for the history item
+        visitDetailsHistory: arrayUnion({ text: visitDetails, at: Timestamp.now(), byName: actorName, byEmail: user.email || '' })
       });
       setIsEditingDetails(false);
       setShowDoctorDropdown(false); // Close doctor dropdown after saving

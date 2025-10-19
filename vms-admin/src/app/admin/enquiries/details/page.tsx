@@ -16,6 +16,7 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
+  Timestamp,
   DocumentData,
   DocumentSnapshot,
   QuerySnapshot,
@@ -654,7 +655,8 @@ function EnquiryDetailsPageContent() {
         updatedAt: serverTimestamp(),
         userId: user.uid,
         userEmail: user.email || '',
-        enquiryDetailsHistory: arrayUnion({ text: enquiryDetails, at: serverTimestamp(), byName: actorName, byEmail: user.email || '' })
+        // serverTimestamp cannot be nested inside arrayUnion in client SDK; use client Timestamp for the history item
+        enquiryDetailsHistory: arrayUnion({ text: enquiryDetails, at: Timestamp.now(), byName: actorName, byEmail: user.email || '' })
       });
       setIsEditingDetails(false);
     } catch (error) {
